@@ -1,0 +1,11 @@
+- ros_topic: /model/submarine/odometry
+  gz_topic: /model/submarine/odometry
+  ros_type: nav_msgs/msg/Odometry
+  gz_type: gz.msgs.Odometry
+  direction: GZ_TO_ROS
+
+- ros_topic: /world/buoyancy_only_world/pose/info
+  gz_topic: /world/buoyancy_only_world/pose/info
+  ros_type: ros_gz_interfaces/msg/ParamVec
+  gz_type: gz.msgs.Param_V
+  direction: GZ_TO_ROS

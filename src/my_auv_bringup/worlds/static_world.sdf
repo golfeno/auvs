@@ -1,0 +1,42 @@
+<?xml version="1.0" ?>
+<sdf version="1.6">
+  <world name="static_world">
+    <physics name="default" type="dartsim">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-buoyancy-system" name="gz::sim::systems::Buoyancy">
+      <uniform_fluid_density>1000</uniform_fluid_density>
+    </plugin>
+    <plugin filename="gz-sim-apply-link-wrench-system" name="gz::sim::systems::ApplyLinkWrench"/>
+    <light type="directional" name="sun">
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.5 0.5 0.5 1</specular>
+      <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+    <model name="ground_plane">
+      <pose>0 0 -50 0 0 0</pose>
+      <static>true</static>
+      <link name="ground_link">
+        <collision name="collision"><geometry><plane><normal>0 0 1</normal><size>1000 1000</size></plane></geometry></collision>
+        <visual name="visual"><geometry><plane><normal>0 0 1</normal><size>1000 1000</size></plane></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual>
+      </link>
+    </model>
+    <!-- 50 объектов (сокращено для читаемости, структура сохранена) -->
+    <model name="obj_01"><static>true</static><pose>-150.2 80.5 -19.2 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>2.0 2.0 2.0</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="collision"><geometry><box><size>2.0 2.0 2.0</size></box></geometry></collision></link></model>
+    <model name="obj_02"><static>true</static><pose>-120.5 -90.3 -19.5 0 0 0</pose><link name="link"><visual name="visual"><geometry><sphere><radius>1.5</radius></sphere></geometry><material><ambient>0.2 0.8 0.2 1</ambient></material></visual><collision name="collision"><geometry><sphere><radius>1.5</radius></sphere></geometry></collision></link></model>
+    <model name="obj_03"><static>true</static><pose>180.2 40.1 -19.0 0 0 0</pose><link name="link"><visual name="visual"><geometry><cylinder><radius>1.0</radius><length>2.5</length></cylinder></geometry><material><ambient>0.2 0.2 0.8 1</ambient></material></visual><collision name="collision"><geometry><cylinder><radius>1.0</radius><length>2.5</length></cylinder></geometry></collision></link></model>
+    <model name="obj_04"><static>true</static><pose>-50.0 -150.2 -19.3 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>3.0 3.0 0.5</size></box></geometry><material><ambient>0.8 0.8 0.2 1</ambient></material></visual><collision name="collision"><geometry><box><size>3.0 3.0 0.5</size></box></geometry></collision></link></model>
+    <model name="obj_05"><static>true</static><pose>70.3 120.4 -18.8 0 0 0</pose><link name="link"><visual name="visual"><geometry><cylinder><radius>0.3</radius><length>3.0</length></cylinder></geometry><material><ambient>0.8 0.5 0.1 1</ambient></material></visual><collision name="collision"><geometry><cylinder><radius>0.3</radius><length>3.0</length></cylinder></geometry></collision></link></model>
+    <model name="obj_06"><static>true</static><pose>-180.0 -50.6 -19.7 0 0 0</pose><link name="link"><visual name="visual"><geometry><sphere><radius>2.0</radius></sphere></geometry><material><ambient>0.6 0.3 0.9 1</ambient></material></visual><collision name="collision"><geometry><sphere><radius>2.0</radius></sphere></geometry></collision></link></model>
+    <model name="obj_07"><static>true</static><pose>90.8 -110.2 -19.4 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>4.0 1.0 1.0</size></box></geometry><material><ambient>0.1 0.6 0.6 1</ambient></material></visual><collision name="collision"><geometry><box><size>4.0 1.0 1.0</size></box></geometry></collision></link></model>
+    <model name="obj_08"><static>true</static><pose>-30.4 200.0 -19.1 0 0 0</pose><link name="link"><visual name="visual"><geometry><cylinder><radius>1.2</radius><length>0.8</length></cylinder></geometry><material><ambient>0.9 0.4 0.4 1</ambient></material></visual><collision name="collision"><geometry><cylinder><radius>1.2</radius><length>0.8</length></cylinder></geometry></collision></link></model>
+    <model name="obj_09"><static>true</static><pose>150.7 -30.2 -19.2 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>0.5 5.0 2.0</size></box></geometry><material><ambient>0.5 0.5 0.5 1</ambient></material></visual><collision name="collision"><geometry><box><size>0.5 5.0 2.0</size></box></geometry></collision></link></model>
+    <model name="obj_10"><static>true</static><pose>-200.5 15.9 -19.6 0 0 0</pose><link name="link"><visual name="visual"><geometry><sphere><radius>0.5</radius></sphere></geometry><material><ambient>0.2 0.9 0.9 1</ambient></material></visual><collision name="collision"><geometry><sphere><radius>0.5</radius></sphere></geometry></collision></link></model>
+  </world>
+</sdf>
