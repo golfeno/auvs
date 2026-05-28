@@ -9,7 +9,7 @@
         <pose>0 0 -0.02 0 0 0</pose>
         <mass>102</mass>
         <inertia><ixx>1.64</ixx><iyy>18.33</iyy><izz>18.33</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
-        <fluid_added_mass><xx>5.8</xx><yy>116.0</yy><zz>116.0</zz><pp>0.7</pp><qq>3.7</qq><rr>3.7</rr></fluid_added_mass>
+        <fluid_added_mass><xx>5.8</xx><yy>116.0</yy><zz>116.0</zz><pp>0.7</pp><qq>0.5</qq><rr>0.5</rr></fluid_added_mass>
       </inertial>
       <visual name="body_visual"><geometry><cylinder><radius>0.1666667</radius><length>1.3333333</length></cylinder></geometry><material><ambient>0.2 0.5 0.8 1</ambient></material></visual>
       <collision name="body_collision"><geometry><cylinder><radius>0.1666667</radius><length>1.3333333</length></cylinder></geometry></collision>
@@ -66,12 +66,12 @@
       <visual name="hrr_v"><geometry><box><size>0.1666667 0.0083333 0.0833333</size></box></geometry><material><ambient>0.2 0.5 0.8 1</ambient></material></visual>
       <collision name="hrr_c"><geometry><box><size>0.05 0.0083333 0.0833333</size></box></geometry></collision>
     </link>
-    <joint name="horizontal_rudder_right_joint" type="revolute"><parent>body</parent><child>horizontal_rudder_right</child><axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit><dynamics><damping>3.0</damping></dynamics></axis></joint>
+    <joint name="horizontal_rudder_right_joint" type="revolute"><parent>body</parent><child>horizontal_rudder_right</child><axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit><dynamics><damping>10</damping></dynamics></axis></joint>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>horizontal_rudder_right_joint</joint_name><topic>/model/submarine/joint/horizontal_rudder_right/cmd_position</topic><p_gain>10</p_gain></plugin>
     <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
       <air_density>1000</air_density><link_name>horizontal_rudder_right</link_name>
       <area>0.014</area><cla>2.5</cla><cla_stall>-0.5</cla_stall>
-      <cda>0.02</cda><cda_stall>1.0</cda_stall><alpha_stall>1.2</alpha_stall><a0>0</a0>
+      <cda>0.5</cda><cda_stall>1.0</cda_stall><alpha_stall>1.2</alpha_stall><a0>0</a0>
       <upward>0 1 0</upward><forward>0 0 1</forward>
       <cp>-0.6666667 0.2833333 0</cp>
     </plugin>
@@ -82,12 +82,12 @@
       <visual name="hrl_v"><geometry><box><size>0.1666667 0.0083333 0.0833333</size></box></geometry><material><ambient>0.2 0.5 0.8 1</ambient></material></visual>
       <collision name="hrl_c"><geometry><box><size>0.05 0.0083333 0.0833333</size></box></geometry></collision>
     </link>
-    <joint name="horizontal_rudder_left_joint" type="revolute"><parent>body</parent><child>horizontal_rudder_left</child><axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit><dynamics><damping>3.0</damping></dynamics></axis></joint>
+    <joint name="horizontal_rudder_left_joint" type="revolute"><parent>body</parent><child>horizontal_rudder_left</child><axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit><dynamics><damping>10</damping></dynamics></axis></joint>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>horizontal_rudder_left_joint</joint_name><topic>/model/submarine/joint/horizontal_rudder_left/cmd_position</topic><p_gain>10</p_gain></plugin>
     <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
       <air_density>1000</air_density><link_name>horizontal_rudder_left</link_name>
       <area>0.014</area><cla>2.5</cla><cla_stall>-0.5</cla_stall>
-      <cda>0.02</cda><cda_stall>1.0</cda_stall><alpha_stall>1.2</alpha_stall><a0>0</a0>
+      <cda>0.5</cda><cda_stall>1.0</cda_stall><alpha_stall>1.2</alpha_stall><a0>0</a0>
       <upward>0 1 0</upward><forward>0 0 1</forward>
       <cp>-0.6666667 -0.2833333 0</cp>
     </plugin>
@@ -98,12 +98,12 @@
       <visual name="vr_v"><geometry><box><size>0.1666667 0.1666667 0.005</size></box></geometry><material><ambient>0.2 0.5 0.8 1</ambient></material></visual>
       <collision name="vr_c"><geometry><box><size>0.0333333 0.0666667 0.005</size></box></geometry></collision>
     </link>
-    <joint name="vertical_rudder_joint" type="revolute"><parent>body</parent><child>vertical_rudder</child><axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit><dynamics><damping>3.0</damping></dynamics></axis></joint>
+    <joint name="vertical_rudder_joint" type="revolute"><parent>body</parent><child>vertical_rudder</child><axis><xyz>1 0 0</xyz><limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit><dynamics><damping>10</damping></dynamics></axis></joint>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController"><joint_name>vertical_rudder_joint</joint_name><topic>/model/submarine/joint/vertical_rudder/cmd_position</topic><p_gain>10</p_gain></plugin>
     <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
       <air_density>1000</air_density><link_name>vertical_rudder</link_name>
       <area>0.028</area><cla>2.5</cla><cla_stall>-0.5</cla_stall>
-      <cda>0.02</cda><cda_stall>1.0</cda_stall><alpha_stall>1.2</alpha_stall><a0>0</a0>
+      <cda>0.5</cda><cda_stall>1.0</cda_stall><alpha_stall>1.2</alpha_stall><a0>0</a0>
       <upward>0 0 1</upward><forward>0 1 0</forward>
       <cp>-0.7666667 0 -0.2833333</cp>
     </plugin>
@@ -132,7 +132,7 @@
     <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics">
       <link_name>body</link_name>
       <xU>-4.0</xU><xUabsU>-44.0</xUabsU><yV>-15.0</yV><yVabsV>-250.0</yVabsV><zW>-15.0</zW><zWabsW>-250.0</zWabsW>
-      <kP>-5.0</kP><kPabsP>-100.0</kPabsP><mQ>-5.0</mQ><mQabsQ>-100.0</mQabsQ><nR>-5.0</nR><nRabsR>-100.0</nRabsR>
+      <kP>-1.0</kP><kPabsP>-10.0</kPabsP><mQ>-1.0</mQ><mQabsQ>-10.0</mQabsQ><nR>-1.0</nR><nRabsR>-10.0</nRabsR>
     </plugin>
     <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics"><link_name>horizontal_rudder_right</link_name><xU>-0.2</xU><xUabsU>-0.5</xUabsU><yV>-0.4</yV><yVabsV>-1.0</yVabsV><zW>-0.4</zW><zWabsW>-1.0</zWabsW><kP>-0.02</kP><kPabsP>-0.05</kPabsP><mQ>-0.02</mQ><mQabsQ>-0.05</mQabsQ><nR>-0.02</nR><nRabsR>-0.05</nRabsR></plugin>
     <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics"><link_name>horizontal_rudder_left</link_name><xU>-0.2</xU><xUabsU>-0.5</xUabsU><yV>-0.4</yV><yVabsV>-1.0</yVabsV><zW>-0.4</zW><zWabsW>-1.0</zWabsW><kP>-0.02</kP><kPabsP>-0.05</kPabsP><mQ>-0.02</mQ><mQabsQ>-0.05</mQabsQ><nR>-0.02</nR><nRabsR>-0.05</nRabsR></plugin>
