@@ -31,6 +31,7 @@ setup(
             'mixer             = my_auv_control.auv_control_mixer:main',
             # ── Alternative altitude control via ballast ──
             'alt_ballast       = my_auv_control.alt_ballast_control:main',
+            'mass_calibration = my_auv_control.mass_calibration:main',
             # ── Diagnostics ──
             'test_straight     = my_auv_control.auv_test_straight:main',
             'test_telemetry    = my_auv_control.test_straight:main',

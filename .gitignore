@@ -1,0 +1,38 @@
+# === ROS 2 Build Artifacts ===
+build/
+install/
+log/
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+.eggs/
+
+# === IDE / Editor ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+
+# === Gazebo / Simulation Cache ===
+~/.gz/
+~/.ignition/
+*.sdf.bak
+
+# === Archive Folder ===
+src/_archive_old_files/
+
+# === User Specific ===
+*.user
+*.local
