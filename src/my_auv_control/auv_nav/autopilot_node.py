@@ -4,6 +4,7 @@ import sys, os
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
+from visualization_msgs.msg import Marker, MarkerArray
 from .models import MotorMode, DepthMode, ActuatorCommands, Phys
 from .sensor_fusion import SensorFusion
 from .phase_manager import PhaseManager
@@ -39,6 +40,10 @@ class AUVAutopilotNode(Node):
         for i in range(1, 5):
             self.pub_b.append(self.create_publisher(
                 Float64, f'/model/submarine/ballast_{i}/volume', 10))
+
+        self.wps = wps
+        self.pub_markers = self.create_publisher(MarkerArray, '/auv/waypoints', 10)
+        self.marker_timer = self.create_timer(0.5, self._pub_markers)
 
         self._b = 0.0
         self.timer = self.create_timer(Phys.DT, self._loop)
@@ -123,6 +128,42 @@ class AUVAutopilotNode(Node):
                 raise SystemExit
         else:
             self.tl.log(s, ph, self.pm.wp_idx, t, self.tw, cmd)
+
+    def _pub_markers(self):
+        """Целевые точки в RViz: все waypoints (сферы) + подсветка текущей."""
+        arr = MarkerArray()
+        for i, w in enumerate(self.wps):
+            m = Marker()
+            m.header.frame_id = 'world'
+            m.header.stamp = self.get_clock().now().to_msg()
+            m.ns = 'waypoints'; m.id = i
+            m.type = Marker.SPHERE; m.action = Marker.ADD
+            m.pose.position.x = float(w[0]); m.pose.position.y = float(w[1]); m.pose.position.z = float(w[2])
+            m.pose.orientation.w = 1.0
+            active = (i == self.pm.wp_idx)
+            s = 1.2 if active else 0.7
+            m.scale.x = s; m.scale.y = s; m.scale.z = s
+            # текущая — зелёная, пройденные — серые, будущие — оранжевые
+            if active:
+                m.color.r, m.color.g, m.color.b = 0.1, 0.9, 0.2
+            elif i < self.pm.wp_idx:
+                m.color.r, m.color.g, m.color.b = 0.4, 0.4, 0.4
+            else:
+                m.color.r, m.color.g, m.color.b = 0.95, 0.55, 0.1
+            m.color.a = 0.8
+            arr.markers.append(m)
+            # подпись с номером точки
+            txt = Marker()
+            txt.header.frame_id = 'world'; txt.header.stamp = m.header.stamp
+            txt.ns = 'wp_labels'; txt.id = 1000 + i
+            txt.type = Marker.TEXT_VIEW_FACING; txt.action = Marker.ADD
+            txt.pose.position.x = float(w[0]); txt.pose.position.y = float(w[1]); txt.pose.position.z = float(w[2]) + 1.0
+            txt.pose.orientation.w = 1.0
+            txt.scale.z = 0.8
+            txt.color.r = txt.color.g = txt.color.b = 1.0; txt.color.a = 0.9
+            txt.text = str(i + 1)
+            arr.markers.append(txt)
+        self.pub_markers.publish(arr)
 
     def _pub(self, cmd):
         self.pub_lt.publish(Float64(data=cmd.lt))

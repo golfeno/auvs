@@ -153,10 +153,16 @@ class PhaseManager:
         elif self.state == 'Z_STAB':
             # Фаза 2b: в зоне XY, доводим Z (подъём/спуск)
             if self.dm == DepthMode.RUDDER:
-                # Рулям нужен поток → малая скорость вперёд
-                p['bs'] = -4.0
+                # ВАЖНО: корпус слегка положительно плавуч (+6.5 Н). Чтобы рули
+                # СМОГЛИ погрузить аппарат, им нужен поток v>=~0.45 м/с, т.е. тяга ~12-15,
+                # а не -4 (при -4 рули давали лишь 2.6 Н < 6.5 Н и спуск был невозможен).
+                # Газуем тем сильнее, чем больше ошибка по Z.
+                base = -12.0
+                if abs(s.z_err) > 1.0:
+                    base = -15.0
+                p['bs'] = base
                 dc = self.get_drift_corr(s)
-                p['yd'] = min(3.0, max(-3.0, 4.0 * (s.yaw_err + dc)))
+                p['yd'] = min(4.0, max(-4.0, 4.0 * (s.yaw_err + dc)))
             else:
                 # Балласты: полный стоп
                 p['bs'] = 0.0
@@ -182,8 +188,18 @@ class PhaseManager:
                 yd = L.turn_gain * ye - L.turn_damp * s.yaw_d
                 p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
             else:
-                # ГАЗ ПО ПРЯМОЙ: нос наведён, идём прямо с малой коррекцией курса
-                p['bs'] = -L.approach_thrust
+                # ГАЗ ПО ПРЯМОЙ с учётом ИНЕРЦИИ: тормозим заранее.
+                # s.vel < 0 = ход вперёд (ось X). Тормозной путь ~ v^2/(2a).
+                v_fwd = -s.vel                      # скорость вперёд (>0)
+                decel = 0.6                         # оценка доступного торможения, м/с^2
+                brake_dist = (v_fwd * v_fwd) / (2.0 * decel) if v_fwd > 0 else 0.0
+                if s.dist_2d <= brake_dist:
+                    # уже пора гасить инерцию → РЕВЕРС тяги (тормозим винтами)
+                    p['bs'] = +min(L.approach_thrust, 0.5 * L.cruise_min)
+                else:
+                    # газ к точке, плавно слабее у самой цели
+                    sc = max(0.35, min(1.0, s.dist_2d / L.r_app))
+                    p['bs'] = -L.approach_thrust * sc
                 yd = 3.0 * ye - 0.5 * s.yaw_d
                 ylim = L.yd_frac * L.approach_thrust
                 p['yd'] = max(-ylim, min(ylim, yd))
