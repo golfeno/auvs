@@ -88,13 +88,26 @@ class SensorFusion:
         self.state.baro_z = (Phys.P_Z0 - msg.data) / Phys.RHO_G
 
     def _imu(self, msg):
-        """IMU: гироскоп → шаг ПРОГНОЗА фильтра Калмана."""
+        """IMU: гироскоп → шаг ПРОГНОЗА фильтра Калмана.
+
+        ВАЖНО: звено body создано повёрнутым на +90° вокруг Y (pose ...0 1.5708 0),
+        чтобы цилиндр лежал горизонтально. Поэтому оси IMU повёрнуты относительно
+        мировой системы (в которой работает одометрия и регуляторы):
+            world = Rot_y(90) * body  ⇒  [x,y,z]_world = [z, y, -x]_body
+        Ремапим и угловые скорости, и углы IMU в мировую систему.
+        """
         s = self.state
         s.imu_ok = True
-        s.gyro[0] = msg.angular_velocity.x
-        s.gyro[1] = msg.angular_velocity.y
-        s.gyro[2] = msg.angular_velocity.z
-        s.rpy_imu = _quat_to_rpy(msg.orientation)
+        gx = msg.angular_velocity.x
+        gy = msg.angular_velocity.y
+        gz = msg.angular_velocity.z
+        # body → world: roll_rate=gz, pitch_rate=gy, yaw_rate=-gx
+        s.gyro[0] = gz
+        s.gyro[1] = gy
+        s.gyro[2] = -gx
+        r_imu = _quat_to_rpy(msg.orientation)
+        # body → world для углов (та же перестановка): roll=imu_yaw, pitch=imu_pitch, yaw=-imu_roll
+        s.rpy_imu = [r_imu[2], r_imu[1], -r_imu[0]]
 
         t = self.node.get_clock().now().nanoseconds / 1e9
         if self._last_imu_t is None:
