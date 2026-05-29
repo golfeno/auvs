@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mass Calibration Tool (v51.0) — параметризован по модели, актуальные константы."""
+"""Mass Calibration Tool (v52.0) — устойчивый расчёт Vz (регрессия + отсечка зажима)."""
 import sys, math, time
 import rclpy
 from rclpy.node import Node
@@ -52,10 +52,40 @@ class MassCalibration(Node):
         sys.stdout.write("="*60 + "\n\n")
         sys.stdout.flush()
 
+    @staticmethod
+    def _slope(times, depths):
+        """МНК-наклон depth(t) -> устойчивая средняя Vz (м/с)."""
+        n = len(times)
+        if n < 2:
+            return 0.0
+        mt = sum(times) / n
+        md = sum(depths) / n
+        num = sum((times[i]-mt)*(depths[i]-md) for i in range(n))
+        den = sum((times[i]-mt)**2 for i in range(n))
+        return num/den if den > 1e-9 else 0.0
+
+    def _free_window(self):
+        """Окно, где аппарат движется свободно (не зажат поверхностью/дном).
+        Отбрасываем образцы, где |Z| близко к экстремуму и Z почти не меняется."""
+        s = self.samples
+        if len(s) < 20:
+            return s
+        depths = [x['depth'] for x in s]
+        zmax, zmin = max(depths), min(depths)
+        # «зажат», если в пределах 2% от размаха у границы
+        band = max(0.05, 0.02*(zmax - zmin))
+        free = [x for x in s if (zmin+band) < x['depth'] < (zmax-band)]
+        # нужен непрерывный осмысленный кусок; иначе берём первую половину пути
+        if len(free) >= 10:
+            return free
+        # fallback: первые 60% времени (до возможного упора)
+        cut = int(len(s)*0.6)
+        return s[:cut] if cut >= 10 else s
+
     def _press_cb(self, msg):
-        new_depth = (P_Z0 - max(0.0, msg.data)) / RHO_G
-        self.depth_vel = (new_depth - self.depth) / 0.02
-        self.depth = new_depth
+        # depth здесь = высота Z в мире (вверх +). Барометр публикует нерегулярно,
+        # поэтому скорость НЕ считаем здесь (это и был баг: деление на 0.02 при нулевой дельте).
+        self.depth = (P_Z0 - max(0.0, msg.data)) / RHO_G
         self.data_ok = True
 
     def _collect(self):
@@ -66,6 +96,12 @@ class MassCalibration(Node):
             self.t0 = t
         elapsed = t - self.t0
 
+        # мгновенная Vz по фактическому интервалу между образцами + сглаживание
+        if self.samples:
+            dt = elapsed - self.samples[-1]['t']
+            if dt > 1e-3:
+                raw = (self.depth - self.samples[-1]['depth']) / dt
+                self.depth_vel = 0.7 * self.depth_vel + 0.3 * raw
         self.samples.append({
             't': elapsed,
             'depth': self.depth,
@@ -92,30 +128,30 @@ class MassCalibration(Node):
         n = len(self.samples)
         if n < 10:
             return
-        start_idx = n // 5
-        depths = [s['depth'] for s in self.samples[start_idx:]]
-        vel_zs = [s['vel_z'] for s in self.samples[start_idx:]]
-        avg_vel = sum(vel_zs) / len(vel_zs)
+        win = self._free_window()
+        times = [s['t'] for s in win]
+        depths = [s['depth'] for s in win]
+        avg_vel = self._slope(times, depths)        # устойчивая Vz (МНК)
         total_depth_change = self.samples[-1]['depth'] - self.samples[0]['depth']
         total_time = self.samples[-1]['t'] - self.samples[0]['t']
         depth_vel_avg = total_depth_change / total_time if total_time > 0 else 0
-        min_vel = min(vel_zs)
-        max_vel = max(vel_zs)
+        vel_zs = [s['vel_z'] for s in win]
+        min_vel = min(vel_zs); max_vel = max(vel_zs)
 
         sys.stdout.write("\r\033[K\n")
         sys.stdout.write("="*50 + "\n")
         sys.stdout.write(f"  ПРОМЕЖУТОЧНЫЙ РЕЗУЛЬТАТ ({int(target_time)} сек)\n")
         sys.stdout.write("="*50 + "\n\n")
         sys.stdout.write(f"  📊 СКОРОСТЬ:\n")
-        sys.stdout.write(f"     Средняя Vz:      {avg_vel:+.4f} м/с\n")
+        sys.stdout.write(f"     Vz (МНК, своб.): {avg_vel:+.4f} м/с\n")
         sys.stdout.write(f"     Δглубины/время:  {depth_vel_avg:+.4f} м/с\n")
-        sys.stdout.write(f"     Изменение Z:     {total_depth_change:+.3f} м\n")
-        sys.stdout.write(f"     Vz (мин):        {min_vel:+.4f} м/с\n")
-        sys.stdout.write(f"     Vz (макс):       {max_vel:+.4f} м/с\n\n")
+        sys.stdout.write(f"     Изменение Z:     {total_depth_change:+.3f} м\n\n")
 
         # Mass calculation
         current_mass = self.cfg['mass']
         v = abs(avg_vel)
+        if v < 1e-4:
+            v = abs(depth_vel_avg)  # fallback на среднюю по перемещению
         if v > 0.001:
             zW = 15.0; zWabsW = 250.0
             F_drag = zW * v + zWabsW * v * v
@@ -147,15 +183,15 @@ class MassCalibration(Node):
         sys.stdout.write("="*60 + "\n\n")
 
         n = len(self.samples)
-        start_idx = n // 5
-
         all_depths = [s['depth'] for s in self.samples]
-        all_vel_zs = [s['vel_z'] for s in self.samples]
-        depths = [s['depth'] for s in self.samples[start_idx:]]
-        vel_zs = [s['vel_z'] for s in self.samples[start_idx:]]
-        times = [s['t'] for s in self.samples[start_idx:]]
 
-        avg_vel = sum(vel_zs) / len(vel_zs)
+        win = self._free_window()
+        times = [s['t'] for s in win]
+        depths = [s['depth'] for s in win]
+        vel_zs = [s['vel_z'] for s in win]
+
+        # Устойчивая Vz: наклон depth(t) по свободному окну (МНК)
+        avg_vel = self._slope(times, depths)
         total_depth_change = self.samples[-1]['depth'] - self.samples[0]['depth']
         total_time = self.samples[-1]['t'] - self.samples[0]['t']
         depth_vel_avg = total_depth_change / total_time if total_time > 0 else 0
@@ -163,10 +199,8 @@ class MassCalibration(Node):
         # Min/max depth
         min_depth = min(all_depths)
         max_depth = max(all_depths)
-
-        # Velocity stats
-        min_vel = min(all_vel_zs)
-        max_vel = max(all_vel_zs)
+        min_vel = min(vel_zs); max_vel = max(vel_zs)
+        clamped = (len(win) < int(n * 0.5))  # большую часть времени упирался в границу
 
         sys.stdout.write(f"  📊 ДАННЫЕ:\n")
         sys.stdout.write(f"     Образцов:        {n}\n")
@@ -175,11 +209,13 @@ class MassCalibration(Node):
         sys.stdout.write(f"     Глубина (макс):  {max_depth:+.3f} м\n\n")
 
         sys.stdout.write(f"  📊 СКОРОСТЬ:\n")
-        sys.stdout.write(f"     Средняя Vz:      {avg_vel:+.4f} м/с\n")
+        sys.stdout.write(f"     Vz (МНК, своб.): {avg_vel:+.4f} м/с\n")
         sys.stdout.write(f"     Δглубины/время:  {depth_vel_avg:+.4f} м/с\n")
         sys.stdout.write(f"     Изменение Z:     {total_depth_change:+.3f} м\n")
-        sys.stdout.write(f"     Vz (мин):        {min_vel:+.4f} м/с\n")
-        sys.stdout.write(f"     Vz (макс):       {max_vel:+.4f} м/с\n\n")
+        sys.stdout.write(f"     Vz (мин/макс):   {min_vel:+.4f} / {max_vel:+.4f} м/с\n")
+        if clamped:
+            sys.stdout.write(f"     ⚠ аппарат упёрся в границу — Vz взята по свободному участку\n")
+        sys.stdout.write("\n")
 
         # Acceleration
         n3 = len(vel_zs) // 3
@@ -194,38 +230,10 @@ class MassCalibration(Node):
             sys.stdout.write(f"     Vz (конец):   {vel_end:+.4f} м/с\n")
             sys.stdout.write(f"     ΔVz:          {vel_end - vel_start:+.4f} м/с\n\n")
 
-        # Mass calculation
-        current_mass = self.cfg['mass']  # из SDF
-        v = abs(avg_vel)
-
-        if v > 0.001:
-            # Полное сопротивление
-            zW = 15.0
-            zWabsW = 250.0
-            F_drag = zW * v + zWabsW * v * v
-            F_buoy = F_drag
-            extra_mass = F_buoy / 9.81
-
-            direction = "всплывает" if avg_vel > 0 else "тонет"
-
-            sys.stdout.write(f"  ⚖️  РАСЧЁТ МАССЫ:\n")
-            sys.stdout.write(f"     Текущая масса:     {current_mass:.2f} кг\n")
-            sys.stdout.write(f"     Направление:       {direction}\n")
-            sys.stdout.write(f"     F_drag (линей):    {zW * v:.3f} Н\n")
-            sys.stdout.write(f"     F_drag (квадр.):   {zWabsW * v * v:.3f} Н\n")
-            sys.stdout.write(f"     F_сумма:           {F_buoy:.3f} Н\n")
-
-            if avg_vel > 0:  # всплывает
-                sys.stdout.write(f"     ➕ Добавить массы:  {extra_mass:.3f} кг\n")
-                sys.stdout.write(f"     Новая масса:       {current_mass + extra_mass:.3f} кг\n")
-            else:  # тонет
-                sys.stdout.write(f"     ➖ Убрать массы:    {extra_mass:.3f} кг\n")
-                sys.stdout.write(f"     Новая масса:       {current_mass - extra_mass:.3f} кг\n")
-        else:
-            sys.stdout.write(f"  ✅ Аппарат НЕ всплывает (Vz ≈ 0)\n")
-
-        # Buoyancy info
+        # ── Геометрия / статическая плавучесть ──
+        g = 9.81
         c = self.cfg
+        current_mass = c['mass']
         hull_vol = math.pi * c['hull_radius']**2 * c['hull_length']
         if c['ballast']:
             bx, by, bz = c['ballast']
@@ -233,8 +241,50 @@ class MassCalibration(Node):
         else:
             ballast_vol = 0.0
         total_vol = hull_vol + ballast_vol
-        buoy = 1000 * 9.81 * total_vol
-        weight = current_mass * 9.81
+        buoy = 1000 * g * total_vol
+        weight = current_mass * g
+        net_static = buoy - weight   # >0 = вверх (лёгкий), <0 = вниз (тяжёлый)
+
+        # ── Динамическая оценка дисбаланса по скорости дрейфа ──
+        v = abs(avg_vel)
+        if v < 1e-4:
+            v = abs(depth_vel_avg)   # fallback: средняя по перемещению Z
+        zW, zWabsW = 15.0, 250.0
+        F_dyn = zW * v + zWabsW * v * v   # сила, уравновешенная сопротивлением
+        # знак берём по фактическому направлению дрейфа (или по статике, если стоит)
+        sign = 1.0 if (avg_vel or depth_vel_avg or net_static) >= 0 else -1.0
+        net_dyn = sign * F_dyn
+
+        # Итоговая рекомендация:
+        # Динамический метод верен ТОЛЬКО при установившейся скорости. Если аппарат
+        # упёрся в границу (clamped) или не вышел на терминальную скорость — он
+        # занижает дисбаланс. Поэтому для известной модели опираемся на статический
+        # баланс (объём и масса известны точно), а динамику показываем как сверку.
+        terminal_ok = (v > 0.005) and (not clamped)
+        net = net_dyn if terminal_ok else net_static
+        delta_kg = abs(net) / g
+
+        sys.stdout.write(f"  ⚖️  РАСЧЁТ МАССЫ:\n")
+        sys.stdout.write(f"     Текущая масса:     {current_mass:.2f} кг\n")
+        sys.stdout.write(f"     F (динам., |Vz|={v:.3f}): {F_dyn:+.1f} Н  {'(терминальная)' if terminal_ok else '(не уст. — сверка)'}\n")
+        sys.stdout.write(f"     F (статич. баланс):      {net_static:+.1f} Н  {'(основа)' if not terminal_ok else '(сверка)'}\n")
+        if net > 0:   # всплывает / слишком лёгкий
+            sys.stdout.write(f"     Вывод: ВСПЛЫВАЕТ (лёгкий)\n")
+            sys.stdout.write(f"     ➕ ДОБАВИТЬ массы:  {delta_kg:.2f} кг\n")
+            new_mass = current_mass + delta_kg
+        else:         # тонет / слишком тяжёлый
+            sys.stdout.write(f"     Вывод: ТОНЕТ (тяжёлый)\n")
+            sys.stdout.write(f"     ➖ УБРАТЬ массы:    {delta_kg:.2f} кг\n")
+            new_mass = current_mass - delta_kg
+        sys.stdout.write(f"     Новая масса:       {new_mass:.2f} кг\n")
+
+        # ── Куда: равномерно по бакам (баки одинаковые, по всему килю) ──
+        if c['n_ballast'] > 0:
+            per = delta_kg / c['n_ballast']
+            verb = "добавить" if net > 0 else "убрать"
+            sys.stdout.write(f"\n  🎯 РАСПРЕДЕЛЕНИЕ ({verb} равномерно):\n")
+            sys.stdout.write(f"     по {per:.2f} кг в каждый из {c['n_ballast']} баков\n")
+            sys.stdout.write(f"     (баки одинаковы и по всему килю → балансировка сохраняется)\n")
 
         sys.stdout.write(f"\n  🌊 ПЛАВУЧЕСТЬ (расчётная):\n")
         sys.stdout.write(f"     Объём корпуса:     {hull_vol:.4f} м³\n")
@@ -242,7 +292,7 @@ class MassCalibration(Node):
         sys.stdout.write(f"     Объём суммарный:   {total_vol:.4f} м³\n")
         sys.stdout.write(f"     Плавучесть:        {buoy:.1f} Н\n")
         sys.stdout.write(f"     Вес:               {weight:.1f} Н\n")
-        sys.stdout.write(f"     Баланс (расчёт):   {buoy - weight:+.1f} Н\n")
+        sys.stdout.write(f"     Баланс (расчёт):   {net_static:+.1f} Н\n")
 
         sys.stdout.write("\n" + "="*60 + "\n")
         sys.stdout.flush()
