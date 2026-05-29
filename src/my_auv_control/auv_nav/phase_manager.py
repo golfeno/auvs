@@ -96,6 +96,11 @@ class PhaseManager:
             sc = min(1.0, dist / 15.0)
             t = L.cruise * sc
             if ra > 0.15: t *= 0.55
+            # taper по курсу: пока нос не наведён на точку — сбавляем ход,
+            # чтобы доворачивать на месте, а не описывать круги вокруг цели
+            import math as _m
+            align = max(0.0, _m.cos(s.yaw_err))
+            t *= (0.25 + 0.75 * align)
             # пол по модулю тяги (L.cruise отрицательна → ход вперёд)
             if -t < L.cruise_min:
                 t = -L.cruise_min
@@ -111,6 +116,9 @@ class PhaseManager:
             sc = min(1.0, dist / 15.0)
             t = L.cruise * sc
             if ra > 0.15: t *= 0.55
+            import math as _m
+            align = max(0.0, _m.cos(s.yaw_err))
+            t *= (0.25 + 0.75 * align)
             # мягче у края коридора (даём глубине отработать), но не ниже мин. хода
             z_margin = max(0.0, min(1.0, (L.z_corr - abs(s.z_err)) / max(1e-3, L.z_corr)))
             t *= (0.5 + 0.5 * z_margin)
