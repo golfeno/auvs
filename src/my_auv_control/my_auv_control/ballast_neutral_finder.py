@@ -25,7 +25,7 @@ from std_msgs.msg import Float32, Float64
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 MODEL = 'submarine'
-MAX_BALLAST_VOL = 0.003
+MAX_BALLAST_VOL = 0.015
 P_Z0 = 101325.0
 RHO_G = 9810.0
 

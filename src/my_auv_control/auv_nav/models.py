@@ -69,8 +69,8 @@ class Phys:
     RHO_G = 9810.0
     DT = 0.02   # 50 Гц — совпадает с частотой одометрии (>=30 Гц)
     MASS = 139.28  # total mass (body 122.7 + ballasts 16.58)
-    MAX_BALLAST_VOL = 0.003
-    RUDDER_TRIM_VOL = 0.05   # пост. залив баков в режиме РУЛЕЙ -> ~+5.5Н (как было до догрузки)
+    MAX_BALLAST_VOL = 0.015
+    RUDDER_TRIM_VOL = 0.01   # пост. залив баков в режиме РУЛЕЙ (~+5.5Н при max=0.015)
 
 
 class PID:
@@ -98,7 +98,7 @@ class PID:
     Ki_bz = 0.05
     Kd_bz = 10.0
     bz_ilim = 1.0
-    bz_neutral = 0.05   # нейтраль балласта (зависание ~при пустых баках, +0.7кг догрузка)
+    bz_neutral = 0.10   # ориентир; точную нейтраль найди узлом ballast_neutral
 
 
 class Lim:
