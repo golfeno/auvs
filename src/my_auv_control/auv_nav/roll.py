@@ -45,10 +45,19 @@ class RollController:
 
     # ---- отдельный канал ВЕРХНЕГО вертикального руля ----
     def vertical_top(self, s: VehicleState, phase: str, dt: float) -> float:
-        """Возвращает положение верхнего вертикального руля для гашения крена.
-        НЕ инвертируется. Активен во всех фазах (даже на зависании)."""
-        # PD-регулятор по крену
-        tgt = P.Kp_roll_v * s.rpy[0] + P.Kd_roll_v * s.roll_d
+        """Верхний вертикальный руль: гасит крен И помогает поворачивать.
+
+        Раньше он работал ТОЛЬКО по крену и при повороте отклонялся против
+        нижнего руля → гасил поворот. Теперь добавлен курсовой терм (в ту же
+        сторону, что нижний руль), а крен — поверх него.
+        """
+        # Курсовая составляющая (как у нижнего руля) — помогает повороту
+        yaw_term = P.Kp_yaw * s.yaw_err + P.Kd_yaw * s.yaw_d
+        if phase in ('HOVER_STAB', 'FINISH'):
+            yaw_term = 0.0
+        # Креновая составляющая (стабилизация крена)
+        roll_term = P.Kp_roll_v * s.rpy[0] + P.Kd_roll_v * s.roll_d
+        tgt = yaw_term + roll_term
         tgt = max(-P.roll_v_lim, min(P.roll_v_lim, tgt))
         self._rvt = self._sl(self._rvt, tgt, L.rud_spd, dt)
         return self._rvt

@@ -70,6 +70,7 @@ class Phys:
     DT = 0.02   # 50 Гц — совпадает с частотой одометрии (>=30 Гц)
     MASS = 139.28  # total mass (body 122.7 + ballasts 16.58)
     MAX_BALLAST_VOL = 0.003
+    RUDDER_TRIM_VOL = 0.05   # пост. залив баков в режиме РУЛЕЙ -> ~+5.5Н (как было до догрузки)
 
 
 class PID:

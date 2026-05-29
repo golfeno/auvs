@@ -182,6 +182,12 @@ class AUVAutopilotNode(Node):
         if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
             for pub in self.pub_b:
                 pub.publish(Float64(data=cmd.ballast_volume * Phys.MAX_BALLAST_VOL))
+        else:
+            # РЕЖИМ РУЛЕЙ: балласт не управляется. После догрузки +0.7кг аппарат
+            # при пустых баках слабо ТОНЕТ — заливаем фикс. объём, чтобы вернуть
+            # слабую положит. плавучесть (как было), иначе он погружается сам.
+            for pub in self.pub_b:
+                pub.publish(Float64(data=Phys.RUDDER_TRIM_VOL * Phys.MAX_BALLAST_VOL))
 
 
 def load_waypoints(filepath):
