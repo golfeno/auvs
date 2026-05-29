@@ -36,6 +36,8 @@ def generate_launch_description():
         package='ros_gz_bridge', executable='parameter_bridge',
         arguments=[
             '/model/submarine/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry',
+            # TF: world -> submarine/body (динамическая поза аппарата) -> /tf
+            '/model/submarine/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
             '/model/submarine/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
             '/model/submarine/magnetometer@sensor_msgs/msg/MagneticField@gz.msgs.Magnetometer',
             '/model/submarine/altimeter@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan',
@@ -54,6 +56,7 @@ def generate_launch_description():
             '/model/submarine/ballast_3/volume@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/ballast_4/volume@std_msgs/msg/Float64@gz.msgs.Double',
         ],
+        remappings=[('/model/submarine/tf', '/tf')],
         output='screen'
     )
 
@@ -62,17 +65,19 @@ def generate_launch_description():
         name='virtual_barometer', output='screen'
     )
 
-    # --- TF: связки кадров сенсоров с корпусом (нужно RViz для отрисовки сканов) ---
-    # frame_id сканов Gazebo = "<model>/<link>/<sensor>" относительно кадра звена body.
+    # --- Статические TF: кадры сенсоров относительно корпуса (для отрисовки сканов) ---
+    # Динамический world->submarine/body даёт OdometryPublisher (через bridge /tf).
+    # frame_id сканов = "submarine/body/<sensor>" — публикуем их как дочерние к body.
     tf_sonar = Node(
         package='tf2_ros', executable='static_transform_publisher', output='log',
-        arguments=['0.75', '0', '0', '0', '0', '0',
-                   'submarine/body', 'submarine/body/sonar_sensor']
+        arguments=['--x', '0.75', '--y', '0', '--z', '0',
+                   '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/sonar_sensor']
     )
     tf_alt = Node(
         package='tf2_ros', executable='static_transform_publisher', output='log',
-        arguments=['0', '0', '-0.17', '0', '1.5707963', '0',
-                   'submarine/body', 'submarine/body/altimeter_sensor']
+        arguments=['--x', '0', '--y', '0', '--z', '-0.17',
+                   '--pitch', '1.5707963',
+                   '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/altimeter_sensor']
     )
 
     # --- RViz2 (визуализация сонара/альтиметра/одометрии) ---

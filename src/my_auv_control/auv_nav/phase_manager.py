@@ -91,24 +91,35 @@ class PhaseManager:
         dist = s.dist_2d
 
         if self.state == 'NAV':
-            # Едем к точке, полная скорость
+            # Едем к точке. Тяга масштабируется с дистанцией, но НЕ гаснет в ноль:
+            # держим минимальный ход, иначе рули теряют поток у самой точки.
             sc = min(1.0, dist / 15.0)
             t = L.cruise * sc
             if ra > 0.15: t *= 0.55
+            # пол по модулю тяги (L.cruise отрицательна → ход вперёд)
+            if -t < L.cruise_min:
+                t = -L.cruise_min
             p['bs'] = t
-            p['yd'] = 5.0 * s.yaw_err
+            # дифференциал курса ограничиваем долей тяги, чтобы моторы не реверсировали
+            # друг против друга (иначе аппарат крутится на месте вместо подхода)
+            yd = 5.0 * s.yaw_err
+            ylim = L.yd_frac * abs(t)
+            p['yd'] = max(-ylim, min(ylim, yd))
 
         elif self.state == 'Z_CORRIDOR':
             # Альт. фаза 2: продолжаем идти к XY, удерживая Z в коридоре.
-            # Тяга как в NAV, но мягче у границы коридора (даём глубине отработать).
             sc = min(1.0, dist / 15.0)
             t = L.cruise * sc
             if ra > 0.15: t *= 0.55
-            # если Z близко к краю коридора — притормаживаем, чтобы не выскочить
+            # мягче у края коридора (даём глубине отработать), но не ниже мин. хода
             z_margin = max(0.0, min(1.0, (L.z_corr - abs(s.z_err)) / max(1e-3, L.z_corr)))
             t *= (0.5 + 0.5 * z_margin)
+            if -t < L.cruise_min:
+                t = -L.cruise_min
             p['bs'] = t
-            p['yd'] = 5.0 * s.yaw_err
+            yd = 5.0 * s.yaw_err
+            ylim = L.yd_frac * abs(t)
+            p['yd'] = max(-ylim, min(ylim, yd))
 
         elif self.state == 'Z_STAB':
             # На месте по XY, корректируем Z

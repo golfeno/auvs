@@ -41,7 +41,6 @@
         <pose>0 0 -0.17 0 1.5707963 0</pose>
         <always_on>1</always_on><update_rate>10</update_rate>
         <topic>/model/submarine_nb/altimeter</topic>
-        <gz_frame_id>submarine_nb/body/altimeter_sensor</gz_frame_id>
         <lidar>
           <scan><horizontal><samples>1</samples><resolution>1</resolution>
             <min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
@@ -52,7 +51,6 @@
         <pose>0.75 0 0 0 0 0</pose>
         <always_on>1</always_on><update_rate>10</update_rate>
         <topic>/model/submarine_nb/sonar</topic>
-        <gz_frame_id>submarine_nb/body/sonar_sensor</gz_frame_id>
         <lidar>
           <scan><horizontal><samples>15</samples><resolution>1</resolution>
             <min_angle>-0.26</min_angle><max_angle>0.26</max_angle></horizontal>
@@ -287,6 +285,8 @@
       <odom_frame>world</odom_frame>
       <robot_base_frame>submarine_nb/body</robot_base_frame>
       <odom_topic>/model/submarine_nb/odometry</odom_topic>
+      <tf_topic>/model/submarine_nb/tf</tf_topic>
+      <dimensions>3</dimensions>
       <odom_publish_frequency>50</odom_publish_frequency>
     </plugin>
 

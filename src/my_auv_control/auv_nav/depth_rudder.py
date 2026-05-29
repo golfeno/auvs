@@ -1,7 +1,7 @@
 """Rudder-based depth control + roll stabilization (v52.0).
 
 PID cascaded: depth error → pitch command → rudder deflection.
-Sign: z_err > 0 = too deep → need nose UP → rudder deflects to push stern down.
+Sign: z_err > 0 = слишком МЕЛКО (выше цели) → погружаемся (см. знак минус ниже).
 
 Управляются ВСЕ 4 горизонтальных руля (кормовые + носовые):
   - канал ГЛУБИНЫ (th): носовые отклоняются зеркально кормовым (момент тангажа)
@@ -55,9 +55,11 @@ class DepthRudderController:
                 Kd *= 2.0
 
         # PID output (канал глубины кормовых рулей)
-        # Sign: z_err > 0 = too deep → need nose up → positive rudder (stern down)
+        # z_err = pos.z - target.z, где pos.z — высота в мире (вверх +).
+        # z_err > 0 → аппарат ВЫШЕ цели (мелко) → надо ВНИЗ.
+        # Знак минус согласован с pid_controller.py и auv_pid_nav.py (рабочими версиями).
         roll_damp = 1.0 - max(0.0, min(0.6, s.roll_abs * 2.0))
-        th = (Kp * s.z_err + Ki * self._iz + Kd * s.dz_dt) * roll_damp
+        th = -(Kp * s.z_err + Ki * self._iz + Kd * s.dz_dt) * roll_damp
 
         # Soft pitch limit
         max_pitch = 0.30

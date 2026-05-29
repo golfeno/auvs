@@ -96,7 +96,7 @@ Visualization Manager:
   Enabled: true
   Global Options:
     Background Color: 20; 30; 45
-    Fixed Frame: submarine/body
+    Fixed Frame: world
     Frame Rate: 30
   Name: root
   Tools:
