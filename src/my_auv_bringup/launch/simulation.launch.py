@@ -32,6 +32,7 @@ def generate_launch_description():
             '/model/submarine/joint/left_propeller_joint/cmd_force@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/right_propeller_joint/cmd_force@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/vertical_rudder/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
+            '/model/submarine/joint/vertical_rudder_top/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/horizontal_rudder_left/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/horizontal_rudder_right/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/horizontal_rudder_front_left/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',

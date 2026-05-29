@@ -20,7 +20,7 @@
       </inertial>
       <visual name="body_visual">
         <geometry><cylinder><radius>0.17</radius><length>1.5</length></cylinder></geometry>
-        <material><ambient>0.2 0.5 0.8 1</ambient></material>
+        <material><ambient>0.15 0.45 0.75 1</ambient><diffuse>0.15 0.45 0.75 1</diffuse><specular>0.15 0.45 0.75 1</specular></material>
       </visual>
       <collision name="body_collision">
         <geometry><cylinder><radius>0.17</radius><length>1.5</length></cylinder></geometry>
@@ -43,11 +43,11 @@
         <inertia><ixx>0.0000592</ixx><iyy>0.0000592</iyy><izz>0.000117</izz>
           <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
       </inertial>
-      <visual name="lp_cyl"><geometry><cylinder><radius>0.0333</radius><length>0.03</length></cylinder></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
-      <visual name="lp_b1"><pose>0.057 0 0 -0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
-      <visual name="lp_b2"><pose>-0.057 0 0 0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
-      <visual name="lp_b3"><pose>0 0.057 0 0 -0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
-      <visual name="lp_b4"><pose>0 -0.057 0 0 0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
+      <visual name="lp_cyl"><geometry><cylinder><radius>0.0333</radius><length>0.03</length></cylinder></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
+      <visual name="lp_b1"><pose>0.057 0 0 -0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
+      <visual name="lp_b2"><pose>-0.057 0 0 0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
+      <visual name="lp_b3"><pose>0 0.057 0 0 -0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
+      <visual name="lp_b4"><pose>0 -0.057 0 0 0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
       <collision name="lp_c1"><pose>0.057 0 0 -0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry></collision>
       <collision name="lp_c2"><pose>-0.057 0 0 0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry></collision>
       <collision name="lp_c3"><pose>0 0.057 0 0 -0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry></collision>
@@ -72,11 +72,11 @@
     <link name="right_propeller">
       <pose>0 -0.2833333 0 0 1.5708 0</pose>
       <inertial><mass>0.101</mass><inertia><ixx>0.0000592</ixx><iyy>0.0000592</iyy><izz>0.000117</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>
-      <visual name="rp_cyl"><geometry><cylinder><radius>0.0333</radius><length>0.03</length></cylinder></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
-      <visual name="rp_b1"><pose>0.057 0 0 0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
-      <visual name="rp_b2"><pose>-0.057 0 0 -0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
-      <visual name="rp_b3"><pose>0 0.057 0 0 0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
-      <visual name="rp_b4"><pose>0 -0.057 0 0 -0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry><material><ambient>0.8 0.8 0.8 1</ambient></material></visual>
+      <visual name="rp_cyl"><geometry><cylinder><radius>0.0333</radius><length>0.03</length></cylinder></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
+      <visual name="rp_b1"><pose>0.057 0 0 0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
+      <visual name="rp_b2"><pose>-0.057 0 0 -0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
+      <visual name="rp_b3"><pose>0 0.057 0 0 0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
+      <visual name="rp_b4"><pose>0 -0.057 0 0 -0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
       <collision name="rp_c1"><pose>0.057 0 0 0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry></collision>
       <collision name="rp_c2"><pose>-0.057 0 0 -0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry></collision>
       <collision name="rp_c3"><pose>0 0.057 0 0 0.349066 0</pose><geometry><box><size>0.05 0.1 0.01</size></box></geometry></collision>
@@ -107,7 +107,7 @@
       </inertial>
       <visual name="hrr_v">
         <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
-        <material><ambient>0.2 0.5 0.8 1</ambient></material>
+        <material><ambient>0.20 0.70 0.30 1</ambient><diffuse>0.20 0.70 0.30 1</diffuse><specular>0.20 0.70 0.30 1</specular></material>
       </visual>
       <collision name="hrr_c">
         <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
@@ -146,7 +146,7 @@
       </inertial>
       <visual name="hrl_v">
         <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
-        <material><ambient>0.2 0.5 0.8 1</ambient></material>
+        <material><ambient>0.20 0.70 0.30 1</ambient><diffuse>0.20 0.70 0.30 1</diffuse><specular>0.20 0.70 0.30 1</specular></material>
       </visual>
       <collision name="hrl_c">
         <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
@@ -185,7 +185,7 @@
       </inertial>
       <visual name="vr_v">
         <geometry><box><size>0.1666667 0.1666667 0.005</size></box></geometry>
-        <material><ambient>0.2 0.5 0.8 1</ambient></material>
+        <material><ambient>0.95 0.50 0.10 1</ambient><diffuse>0.95 0.50 0.10 1</diffuse><specular>0.95 0.50 0.10 1</specular></material>
       </visual>
       <collision name="vr_c">
         <geometry><box><size>0.0333333 0.0666667 0.005</size></box></geometry>
@@ -215,6 +215,45 @@
     </plugin>
 
 
+    <!-- Вертикальный руль ВЕРХНИЙ (кормовой, для стабилизации крена) -->
+    <link name="vertical_rudder_top">
+      <pose>-0.75 0 0.27 1.5708 1.5708 0</pose>
+      <inertial>
+        <mass>0.02315</mass>
+        <inertia><ixx>0.00000129</ixx><iyy>0.00000129</iyy><izz>0.00000129</izz>
+          <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+      </inertial>
+      <visual name="vrt_v">
+        <geometry><box><size>0.1666667 0.1666667 0.005</size></box></geometry>
+        <material><ambient>0.95 0.50 0.10 1</ambient><diffuse>0.95 0.50 0.10 1</diffuse><specular>0.95 0.50 0.10 1</specular></material>
+      </visual>
+      <collision name="vrt_c">
+        <geometry><box><size>0.0333333 0.0666667 0.005</size></box></geometry>
+      </collision>
+    </link>
+    <joint name="vertical_rudder_top_joint" type="revolute">
+      <parent>body</parent><child>vertical_rudder_top</child>
+      <axis>
+        <xyz>1 0 0</xyz>
+        <limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit>
+        <dynamics><damping>3.0</damping></dynamics>
+      </axis>
+    </joint>
+    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
+      <joint_name>vertical_rudder_top_joint</joint_name>
+      <topic>/model/submarine/joint/vertical_rudder_top/cmd_position</topic>
+      <p_gain>10</p_gain>
+    </plugin>
+    <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
+      <air_density>1000</air_density>
+      <link_name>vertical_rudder_top</link_name>
+      <area>0.028</area><cla>2.5</cla><cla_stall>-0.5</cla_stall>
+      <cda>0.02</cda><cda_stall>1.0</cda_stall>
+      <alpha_stall>0.2</alpha_stall><a0>0</a0>
+      <upward>0 0 1</upward><forward>0 1 0</forward>
+      <cp>0 0 0</cp>
+    </plugin>
+
     <!-- ===== НОСОВЫЕ ГОРИЗОНТАЛЬНЫЕ РУЛИ (зеркально кормовых) ===== -->
 
     <!-- Носовой правый руль -->
@@ -227,7 +266,7 @@
       </inertial>
       <visual name="hfrr_v">
         <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
-        <material><ambient>0.2 0.5 0.8 1</ambient></material>
+        <material><ambient>0.20 0.70 0.30 1</ambient><diffuse>0.20 0.70 0.30 1</diffuse><specular>0.20 0.70 0.30 1</specular></material>
       </visual>
       <collision name="hfrr_c">
         <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
@@ -266,7 +305,7 @@
       </inertial>
       <visual name="hfrl_v">
         <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
-        <material><ambient>0.2 0.5 0.8 1</ambient></material>
+        <material><ambient>0.20 0.70 0.30 1</ambient><diffuse>0.20 0.70 0.30 1</diffuse><specular>0.20 0.70 0.30 1</specular></material>
       </visual>
       <collision name="hfrl_c">
         <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
@@ -296,13 +335,13 @@
     </plugin>
 
     <!-- ===== БАЛЛАСТЫ ===== -->
-    <link name="ballast_1"><pose>0.49 0 -0.2 0 0 0</pose><inertial><mass>5.88</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b1_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="b1_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
+    <link name="ballast_1"><pose>0.49 0 -0.2 0 0 0</pose><inertial><mass>5.88</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b1_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual><collision name="b1_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
     <joint name="ballast_1_joint" type="fixed"><parent>body</parent><child>ballast_1</child></joint>
-    <link name="ballast_2"><pose>0.17 0 -0.2 0 0 0</pose><inertial><mass>5.25</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b2_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="b2_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
+    <link name="ballast_2"><pose>0.17 0 -0.2 0 0 0</pose><inertial><mass>5.25</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b2_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual><collision name="b2_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
     <joint name="ballast_2_joint" type="fixed"><parent>body</parent><child>ballast_2</child></joint>
-    <link name="ballast_3"><pose>-0.17 0 -0.2 0 0 0</pose><inertial><mass>3.0</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b3_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="b3_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
+    <link name="ballast_3"><pose>-0.17 0 -0.2 0 0 0</pose><inertial><mass>3.0</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b3_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual><collision name="b3_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
     <joint name="ballast_3_joint" type="fixed"><parent>body</parent><child>ballast_3</child></joint>
-    <link name="ballast_4"><pose>-0.49 0 -0.2 0 0 0</pose><inertial><mass>2.554</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b4_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="b4_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
+    <link name="ballast_4"><pose>-0.49 0 -0.2 0 0 0</pose><inertial><mass>2.554</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b4_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual><collision name="b4_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
     <joint name="ballast_4_joint" type="fixed"><parent>body</parent><child>ballast_4</child></joint>
 
     <plugin filename="gz-sim-buoyancy-engine-system" name="gz::sim::systems::BuoyancyEngine"><link_name>ballast_1</link_name><min_volume>0.0</min_volume><max_volume>0.003</max_volume><topic>/model/submarine/ballast_1/volume</topic></plugin>
@@ -350,6 +389,16 @@
 
     <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics">
       <link_name>vertical_rudder</link_name>
+      <xU>-0.2</xU><xUabsU>-0.5</xUabsU>
+      <yV>-0.4</yV><yVabsV>-1.0</yVabsV>
+      <zW>-0.4</zW><zWabsW>-1.0</zWabsW>
+      <kP>-0.02</kP><kPabsP>-0.05</kPabsP>
+      <mQ>-0.02</mQ><mQabsQ>-0.05</mQabsQ>
+      <nR>-0.02</nR><nRabsR>-0.05</nRabsR>
+    </plugin>
+
+    <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics">
+      <link_name>vertical_rudder_top</link_name>
       <xU>-0.2</xU><xUabsU>-0.5</xUabsU>
       <yV>-0.4</yV><yVabsV>-1.0</yVabsV>
       <zW>-0.4</zW><zWabsW>-1.0</zWabsW>

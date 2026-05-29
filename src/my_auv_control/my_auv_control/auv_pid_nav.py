@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AUV Autopilot v49.10 | Technical Phase Names & Multi-line Logging"""
+"""AUV Autopilot v49.11 | 6 rudders: +top vertical (roll), +bow horizontals"""
 import rclpy, math, time, sys
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
@@ -29,6 +29,9 @@ class AUVMultiLineAutopilot(Node):
         self.pub_vert = self.create_publisher(Float64, '/model/submarine/joint/vertical_rudder/cmd_position', 10)
         self.pub_hl = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_left/cmd_position', 10)
         self.pub_hr = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_right/cmd_position', 10)
+        self.pub_vert_top = self.create_publisher(Float64, '/model/submarine/joint/vertical_rudder_top/cmd_position', 10)
+        self.pub_hfl = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_front_left/cmd_position', 10)
+        self.pub_hfr = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_front_right/cmd_position', 10)
         
         self.pub_p_nav = self.create_publisher(Point, '/analytics/phase_nav', 10)
         self.pub_p_stab = self.create_publisher(Point, '/analytics/phase_stab', 10)
@@ -68,6 +71,11 @@ class AUVMultiLineAutopilot(Node):
         self.Kp_yaw = 5.0; self.Kd_yaw = 2.8 
         self.Kp_roll = 50.0; self.Kd_roll = 22.0 
         self.roll_bias = 0.04
+        # Верхний вертикальный руль — отдельный канал стабилизации крена (НЕ инвертируется)
+        self.Kp_roll_v = 8.0; self.Kd_roll_v = 3.5; self.roll_v_lim = 0.6
+        self.curr_rvt = 0.0
+        # Знаки носовых рулей: глубина зеркальна кормовым, крен сонаправлен
+        self.frud_depth_sign = -1.0; self.frud_roll_sign = 1.0
         
         self.xy_final_start_time = 0.0
         self.in_back_off_maneuver = False
@@ -199,9 +207,23 @@ class AUVMultiLineAutopilot(Node):
         raw_hr = max(-0.95, min(0.95, target_rudder_h + roll_pid + self.roll_bias))
         self.prev_rpy = list(self.rpy)
         
+        # === ВЕРХНИЙ ВЕРТИКАЛЬНЫЙ РУЛЬ (стабилизация крена, НЕ инвертируется) ===
+        target_rudder_vt = self.Kp_roll_v * roll_err + self.Kd_roll_v * d_roll
+        target_rudder_vt = max(-self.roll_v_lim, min(self.roll_v_lim, target_rudder_vt))
+
+        # === НОСОВЫЕ ГОРИЗОНТАЛЬНЫЕ РУЛИ ===
+        # глубина зеркальна кормовым, крен в ту же сторону → чистый момент крена
+        th_bow = self.frud_depth_sign * target_rudder_h
+        rp_bow = self.frud_roll_sign * (roll_pid + self.roll_bias)
+        raw_hfl = max(-0.95, min(0.95, th_bow - rp_bow))
+        raw_hfr = max(-0.95, min(0.95, th_bow + rp_bow))
+
         self.curr_rv = self.constrain_slew(self.curr_rv, target_rudder_v, self.max_rudder_speed)
+        self.curr_rvt = self.constrain_slew(self.curr_rvt, target_rudder_vt, self.max_rudder_speed)
         self.curr_hl = self.constrain_slew(self.curr_hl, raw_hl, self.max_rudder_speed)
         self.curr_hr = self.constrain_slew(self.curr_hr, raw_hr, self.max_rudder_speed)
+        self.curr_hfl = self.constrain_slew(getattr(self, 'curr_hfl', 0.0), raw_hfl, self.max_rudder_speed)
+        self.curr_hfr = self.constrain_slew(getattr(self, 'curr_hfr', 0.0), raw_hfr, self.max_rudder_speed)
         
         cmd_lt = 0.0; cmd_rt = 0.0
 
@@ -291,7 +313,8 @@ class AUVMultiLineAutopilot(Node):
                     sys.stdout.flush()
                     raise SystemExit
 
-        self._pub(cmd_lt, cmd_rt, self.curr_rv, self.curr_hl, self.curr_hr)
+        self._pub(cmd_lt, cmd_rt, self.curr_rv, self.curr_hl, self.curr_hr,
+                  self.curr_rvt, self.curr_hfl, self.curr_hfr)
         
         # Интерактивное обновление лога текущей точки на одной строке через \r
         if self.state != 'FINISH':
@@ -303,12 +326,17 @@ class AUVMultiLineAutopilot(Node):
             )
             sys.stdout.flush()
 
-    def _pub(self, lt, rt, rv, hl, hr):
+    def _pub(self, lt, rt, rv, hl, hr, rvt=0.0, hfl=None, hfr=None):
         self.pub_lt.publish(Float64(data=float(lt)))
         self.pub_rt.publish(Float64(data=float(rt)))
         self.pub_vert.publish(Float64(data=float(rv)))
         self.pub_hl.publish(Float64(data=float(hl)))
         self.pub_hr.publish(Float64(data=float(hr)))
+        # Верхний вертикальный руль — стабилизация крена (не инвертируется)
+        self.pub_vert_top.publish(Float64(data=float(rvt)))
+        # Носовые горизонтальные рули (если не заданы — зеркально кормовым по глубине)
+        self.pub_hfl.publish(Float64(data=float(hfl if hfl is not None else -hl)))
+        self.pub_hfr.publish(Float64(data=float(hfr if hfr is not None else -hr)))
 
     def run(self):
         try: rclpy.spin(self)

@@ -36,6 +36,7 @@ def generate_launch_description():
             f'/model/{M}/joint/left_propeller_joint/cmd_force@std_msgs/msg/Float64@gz.msgs.Double',
             f'/model/{M}/joint/right_propeller_joint/cmd_force@std_msgs/msg/Float64@gz.msgs.Double',
             f'/model/{M}/joint/vertical_rudder/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
+            f'/model/{M}/joint/vertical_rudder_top/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             f'/model/{M}/joint/horizontal_rudder_left/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             f'/model/{M}/joint/horizontal_rudder_right/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
         ],

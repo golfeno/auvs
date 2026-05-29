@@ -27,6 +27,9 @@ class AUVUnifiedNode(Node):
         self.pub_vert = self.create_publisher(Float64, f'/model/{m}/joint/vertical_rudder/cmd_position', 10)
         self.pub_hl = self.create_publisher(Float64, f'/model/{m}/joint/horizontal_rudder_left/cmd_position', 10)
         self.pub_hr = self.create_publisher(Float64, f'/model/{m}/joint/horizontal_rudder_right/cmd_position', 10)
+        self.pub_hfl = self.create_publisher(Float64, f'/model/{m}/joint/horizontal_rudder_front_left/cmd_position', 10)
+        self.pub_hfr = self.create_publisher(Float64, f'/model/{m}/joint/horizontal_rudder_front_right/cmd_position', 10)
+        self.pub_vert_top = self.create_publisher(Float64, f'/model/{m}/joint/vertical_rudder_top/cmd_position', 10)
         self.pub_wrench = self.create_publisher(WrenchStamped, f'/model/{m}/link/body/wrench', 10)
 
         self.create_subscription(Odometry, f'/model/{m}/odometry', self.odom_cb, 10)
@@ -87,18 +90,26 @@ class AUVUnifiedNode(Node):
             elif k in ['\x1b','q']: self.shutdown = True
 
         stab_r = stab_p = 0.0
+        rud_vt = 0.0
         if self.stab_on:
             stab_r = max(-0.25, min(0.25, (self.kp_r*(-self.tel_roll)-self.kd_r*self.tel_roll_rate)*0.4))
             stab_p = max(-0.25, min(0.25, (self.kp_p*(-self.tel_pitch)-self.kd_p*self.tel_pitch_rate)*0.4))
+            # Верхний вертикальный руль — отдельный канал крена (НЕ инвертируется)
+            rud_vt = max(-self.max_rudder, min(self.max_rudder,
+                         (self.kp_r*(-self.tel_roll)-self.kd_r*self.tel_roll_rate)))
 
+        # Канал крена для горизонтальных рулей (дифференциально L/R)
+        roll_h = max(-self.max_rudder, min(self.max_rudder, stab_r))
         rud_h = max(-self.max_rudder, min(self.max_rudder, self.cmd_pitch + self.cmd_ballast_pitch + stab_p))
-        rud_v = max(-self.max_rudder, min(self.max_rudder, self.cmd_yaw + stab_r*0.3))
+        rud_v = max(-self.max_rudder, min(self.max_rudder, self.cmd_yaw))
         thr_l = -max(-self.max_thrust, min(self.max_thrust, self.cmd_thrust + self.cmd_diff))
         thr_r = -max(-self.max_thrust, min(self.max_thrust, self.cmd_thrust - self.cmd_diff))
 
-        self.pub_hl.publish(Float64(data=rud_h)); self.pub_hr.publish(Float64(data=rud_h))
-        self.pub_hfl.publish(Float64(data=-rud_h)); self.pub_hfr.publish(Float64(data=-rud_h))
+        # Кормовые: глубина rud_h, крен дифференциально; носовые: глубина зеркальна, крен сонаправлен
+        self.pub_hl.publish(Float64(data=rud_h - roll_h)); self.pub_hr.publish(Float64(data=rud_h + roll_h))
+        self.pub_hfl.publish(Float64(data=-rud_h - roll_h)); self.pub_hfr.publish(Float64(data=-rud_h + roll_h))
         self.pub_vert.publish(Float64(data=rud_v))
+        self.pub_vert_top.publish(Float64(data=rud_vt))
         self.pub_lt.publish(Float64(data=thr_l)); self.pub_rt.publish(Float64(data=thr_r))
         w = WrenchStamped()
         w.wrench.force.z = self.cmd_ballast_heave
@@ -119,7 +130,7 @@ class AUVUnifiedNode(Node):
         self.cmd_thrust=0.0; self.cmd_diff=0.0; self.cmd_pitch=0.0; self.cmd_yaw=0.0
         self.cmd_ballast_pitch=0.0; self.cmd_ballast_heave=0.0
         zero = Float64(data=0.0)
-        for p in [self.pub_lt, self.pub_rt, self.pub_vert, self.pub_hl, self.pub_hr, self.pub_hfl, self.pub_hfr]: p.publish(zero)
+        for p in [self.pub_lt, self.pub_rt, self.pub_vert, self.pub_vert_top, self.pub_hl, self.pub_hr, self.pub_hfl, self.pub_hfr]: p.publish(zero)
         self.pub_wrench.publish(WrenchStamped())
 
     def cleanup(self):

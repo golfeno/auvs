@@ -10,6 +10,7 @@ from .phase_manager import PhaseManager
 from .heading import HeadingController
 from .depth_rudder import DepthRudderController
 from .depth_ballast import DepthBallastController
+from .roll import RollController
 from .telemetry import Telemetry
 
 
@@ -22,11 +23,13 @@ class AUVAutopilotNode(Node):
         self.heading = HeadingController()
         self.depth_r = DepthRudderController()
         self.depth_b = DepthBallastController()
+        self.roll = RollController()
         self.tl = Telemetry(self)
 
         self.pub_lt   = self.create_publisher(Float64, '/model/submarine/joint/left_propeller_joint/cmd_force', 10)
         self.pub_rt   = self.create_publisher(Float64, '/model/submarine/joint/right_propeller_joint/cmd_force', 10)
         self.pub_vert = self.create_publisher(Float64, '/model/submarine/joint/vertical_rudder/cmd_position', 10)
+        self.pub_vert_top = self.create_publisher(Float64, '/model/submarine/joint/vertical_rudder_top/cmd_position', 10)
         self.pub_hl   = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_left/cmd_position', 10)
         self.pub_hr   = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_right/cmd_position', 10)
         self.pub_hfl  = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_front_left/cmd_position', 10)
@@ -62,17 +65,20 @@ class AUVAutopilotNode(Node):
             self.heading.reset()
             self.depth_r.reset()
             self.depth_b.reset()
+            self.roll.reset()
             self._b = 0.0
             self.pm.need_pid_reset = False
 
         cmd = ActuatorCommands()
 
-        # Heading — always
+        # Heading — always (нижний вертикальный руль)
         cmd.rv = self.heading.compute(s, ph, Phys.DT, False)
+        # Roll — верхний вертикальный руль (отдельный канал, НЕ инвертируется)
+        cmd.rvt = self.roll.vertical_top(s, ph, Phys.DT)
 
-        # Depth
+        # Depth + roll через все 4 горизонтальных руля
         if self.dm in (DepthMode.RUDDER, DepthMode.BOTH):
-            cmd.hl, cmd.hr = self.depth_r.compute(s, ph, Phys.DT)
+            cmd.hl, cmd.hr, cmd.hfl, cmd.hfr = self.depth_r.compute(s, ph, Phys.DT)
         if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
             cmd.ballast_volume = self.depth_b.compute(s, ph, Phys.DT)
 
@@ -101,7 +107,7 @@ class AUVAutopilotNode(Node):
             self.tl.log_wp(self.pm.wp_idx + 1)
             self.pm.wp_idx += 1
             if self.pm.wp_idx < self.tw:
-                self.heading.reset(); self.depth_r.reset(); self.depth_b.reset()
+                self.heading.reset(); self.depth_r.reset(); self.depth_b.reset(); self.roll.reset()
                 self._b = 0.0
                 self.pm.init_wp(t, s.pos)
             else:
@@ -117,11 +123,15 @@ class AUVAutopilotNode(Node):
         self.pub_lt.publish(Float64(data=cmd.lt))
         self.pub_rt.publish(Float64(data=cmd.rt))
         self.pub_vert.publish(Float64(data=cmd.rv))
+        # Верхний вертикальный руль — стабилизация крена (не инвертируется)
+        self.pub_vert_top.publish(Float64(data=cmd.rvt))
+        # Кормовые горизонтальные рули
         self.pub_hl.publish(Float64(data=cmd.hl))
         self.pub_hr.publish(Float64(data=cmd.hr))
-        # Носовые рули — ЗЕРКАЛЬНО кормовым (противоположное вращение)
-        self.pub_hfl.publish(Float64(data=-cmd.hl))
-        self.pub_hfr.publish(Float64(data=-cmd.hr))
+        # Носовые горизонтальные рули — рассчитаны контроллером
+        # (канал глубины зеркальный, канал крена сонаправленный)
+        self.pub_hfl.publish(Float64(data=cmd.hfl))
+        self.pub_hfr.publish(Float64(data=cmd.hfr))
         if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
             for pub in self.pub_b:
                 pub.publish(Float64(data=cmd.ballast_volume * Phys.MAX_BALLAST_VOL))

@@ -17,6 +17,7 @@ class MixerNB(Node):
         self.pub_vert = self.create_publisher(Float64, f'/model/{M}/joint/vertical_rudder/cmd_position', 10)
         self.pub_hl   = self.create_publisher(Float64, f'/model/{M}/joint/horizontal_rudder_left/cmd_position', 10)
         self.pub_hr   = self.create_publisher(Float64, f'/model/{M}/joint/horizontal_rudder_right/cmd_position', 10)
+        self.pub_vert_top = self.create_publisher(Float64, f'/model/{M}/joint/vertical_rudder_top/cmd_position', 10)
         self.create_subscription(Odometry, f'/model/{M}/odometry', self._odom, 10)
 
         self.ct=0.0; self.cd=0.0; self.cy=0.0; self.cp=0.0
@@ -71,25 +72,30 @@ class MixerNB(Node):
             elif k == 't': self.stab = not self.stab
             elif k == ' ':
                 self.ct=self.cd=self.cy=self.cp=0.0
-                for p in [self.pub_lt,self.pub_rt,self.pub_vert,self.pub_hl,self.pub_hr]:
+                for p in [self.pub_lt,self.pub_rt,self.pub_vert,self.pub_vert_top,self.pub_hl,self.pub_hr]:
                     p.publish(Float64(data=0.0))
             elif k in ('\x1b','q'):
                 self.dead = True
 
         # Stabilization
         sp = sr = 0.0
+        rvt = 0.0
         if self.stab:
             sp = max(-0.25, min(0.25, (-2.5*self.pitch - 1.0*self.pr)*0.4))
             sr = max(-0.25, min(0.25, (-2.5*self.roll  - 1.0*self.rr)*0.4))
+            # Верхний вертикальный руль — отдельный канал крена (НЕ инвертируется)
+            rvt = max(-self.mr, min(self.mr, (-2.5*self.roll - 1.0*self.rr)))
 
-        rh = max(-self.mr, min(self.mr, self.cp + sp))
-        rv = max(-self.mr, min(self.mr, self.cy + sr*0.3))
+        rh = max(-self.mr, min(self.mr, self.cp + sp))   # глубина (тангаж)
+        roll_h = max(-self.mr, min(self.mr, sr))         # крен (дифференциально)
+        rv = max(-self.mr, min(self.mr, self.cy))
         tl = -max(-self.mt, min(self.mt, self.ct + self.cd))
         tr = -max(-self.mt, min(self.mt, self.ct - self.cd))
 
-        self.pub_hl.publish(Float64(data=rh))
-        self.pub_hr.publish(Float64(data=rh))
+        self.pub_hl.publish(Float64(data=rh - roll_h))
+        self.pub_hr.publish(Float64(data=rh + roll_h))
         self.pub_vert.publish(Float64(data=rv))
+        self.pub_vert_top.publish(Float64(data=rvt))
         self.pub_lt.publish(Float64(data=tl))
         self.pub_rt.publish(Float64(data=tr))
 
@@ -104,7 +110,7 @@ class MixerNB(Node):
 
     def cleanup(self):
         self.ct=self.cd=self.cy=self.cp=0.0
-        for p in [self.pub_lt,self.pub_rt,self.pub_vert,self.pub_hl,self.pub_hr]:
+        for p in [self.pub_lt,self.pub_rt,self.pub_vert,self.pub_vert_top,self.pub_hl,self.pub_hr]:
             p.publish(Float64(data=0.0))
         termios.tcsetattr(self.fd, termios.TCSADRAIN, self.old)
         sys.stdout.write(f"\n🛑 {M} mixer stopped.\n")

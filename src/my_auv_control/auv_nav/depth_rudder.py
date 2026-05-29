@@ -1,8 +1,16 @@
-"""Rudder-based depth control (v51.0).
+"""Rudder-based depth control + roll stabilization (v52.0).
 
 PID cascaded: depth error → pitch command → rudder deflection.
 Sign: z_err > 0 = too deep → need nose UP → rudder deflects to push stern down.
-    (stern rudder: opposite direction from bow rudder)
+
+Управляются ВСЕ 4 горизонтальных руля (кормовые + носовые):
+  - канал ГЛУБИНЫ (th): носовые отклоняются зеркально кормовым (момент тангажа)
+  - канал КРЕНА  (rp): дифференциально левый/правый, ОДИНАКОВО на носу и корме
+                       (создаёт чистый момент крена без паразитного тангажа)
+
+      hl  = th_stern - rp        hr  = th_stern + rp
+      hfl = th_bow   - rp        hfr = th_bow   + rp
+  где th_bow = frud_depth_sign * th_stern.
 """
 from .models import VehicleState, PID as P, Lim as L
 
@@ -11,6 +19,8 @@ class DepthRudderController:
     def __init__(self):
         self._hl = 0.0
         self._hr = 0.0
+        self._hfl = 0.0
+        self._hfr = 0.0
         self._iz = 0.0  # integral for depth
 
     @staticmethod
@@ -22,7 +32,7 @@ class DepthRudderController:
         self._iz = 0.0
 
     def compute(self, s: VehicleState, phase: str, dt: float):
-        """Returns (hl, hr) — horizontal rudder left/right positions."""
+        """Returns (hl, hr, hfl, hfr) — положения всех 4 горизонтальных рулей."""
         vel_abs = max(0.1, abs(s.vel))
         vs = max(0.3, min(1.0, vel_abs / 2.0))
 
@@ -44,7 +54,7 @@ class DepthRudderController:
             if abs(s.z_err) < brake_dist * 1.5:
                 Kd *= 2.0
 
-        # PID output
+        # PID output (канал глубины кормовых рулей)
         # Sign: z_err > 0 = too deep → need nose up → positive rudder (stern down)
         roll_damp = 1.0 - max(0.0, min(0.6, s.roll_abs * 2.0))
         th = (Kp * s.z_err + Ki * self._iz + Kd * s.dz_dt) * roll_damp
@@ -58,13 +68,24 @@ class DepthRudderController:
 
         th = max(-0.55, min(0.55, th))
 
-        # Roll stabilisation
+        # ── Roll stabilisation (дифференциальный терм, общий для всех рулей) ──
         rp = P.Kp_roll * s.rpy[0] + P.Kd_roll * s.roll_d
         rp *= max(0.15, 1.0 - (abs(s.z_err) / 5.0))
 
+        # Канал глубины носовых рулей — зеркально кормовым (момент тангажа)
+        th_bow = P.frud_depth_sign * th
+        # Канал крена носовых рулей — в ту же сторону, что и кормовые (момент крена)
+        rp_bow = P.frud_roll_sign * rp
+
+        # Кормовые рули
         raw_hl = max(-0.95, min(0.95, th - rp - P.roll_bias))
         raw_hr = max(-0.95, min(0.95, th + rp + P.roll_bias))
+        # Носовые рули
+        raw_hfl = max(-0.95, min(0.95, th_bow - rp_bow - P.roll_bias))
+        raw_hfr = max(-0.95, min(0.95, th_bow + rp_bow + P.roll_bias))
 
         self._hl = self._sl(self._hl, raw_hl, L.rud_spd, dt)
         self._hr = self._sl(self._hr, raw_hr, L.rud_spd, dt)
-        return self._hl, self._hr
+        self._hfl = self._sl(self._hfl, raw_hfl, L.rud_spd, dt)
+        self._hfr = self._sl(self._hfr, raw_hfr, L.rud_spd, dt)
+        return self._hl, self._hr, self._hfl, self._hfr

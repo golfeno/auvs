@@ -1,4 +1,4 @@
-"""PID Controller (v50.26) — no constant bias, clean PID, Z-braking."""
+"""PID Controller (v52.0) — all 6 rudders, dedicated roll channel."""
 from .models import (VehicleState, ActuatorCommands, PID as P, Lim as L,
                      SR, MotorMode, DepthMode, Phys)
 import math
@@ -7,7 +7,8 @@ import math
 class PIDController:
     def __init__(self, mm=MotorMode.DUAL, dm=DepthMode.RUDDER):
         self.mm = mm; self.dm = dm
-        self._b = 0.0; self._rv = 0.0; self._hl = 0.0; self._hr = 0.0
+        self._b = 0.0; self._rv = 0.0; self._rvt = 0.0
+        self._hl = 0.0; self._hr = 0.0; self._hfl = 0.0; self._hfr = 0.0
         self._iz = 0.0; self._biz = 0.0; self._vol = 0.5
 
     @staticmethod
@@ -15,7 +16,7 @@ class PIDController:
         d = r * dt; return c + max(-d, min(d, t - c))
 
     def reset(self):
-        self._iz = 0.0; self._biz = 0.0
+        self._iz = 0.0; self._biz = 0.0; self._rvt = 0.0
 
     def force_zero_thrust(self):
         self._b = 0.0
@@ -23,8 +24,9 @@ class PIDController:
     def compute(self, s, phase, tp, dt, bo=False, turning=False):
         a = ActuatorCommands()
         a.rv = self._heading(s, phase, dt, bo)
+        a.rvt = self._roll_vertical_top(s, phase, dt)
         if self.dm in (DepthMode.RUDDER, DepthMode.BOTH):
-            a.hl, a.hr = self._depth_rudder(s, phase, dt)
+            a.hl, a.hr, a.hfl, a.hfr = self._depth_rudder(s, phase, dt)
         if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
             a.ballast_volume = self._depth_ballast(s, phase, dt)
         a.lt, a.rt = self._thrust(s, phase, tp, dt, bo)
@@ -39,6 +41,13 @@ class PIDController:
             if s.roll_abs > 0.18 and phase == 'XY_FINAL': tgt *= 0.35
             tgt = max(-0.5, min(0.5, tgt))
         self._rv = self._sl(self._rv, tgt, L.rud_spd, dt); return self._rv
+
+    def _roll_vertical_top(self, s, phase, dt):
+        """Верхний вертикальный руль — стабилизация крена. НЕ инвертируется."""
+        tgt = P.Kp_roll_v * s.rpy[0] + P.Kd_roll_v * s.roll_d
+        tgt = max(-P.roll_v_lim, min(P.roll_v_lim, tgt))
+        self._rvt = self._sl(self._rvt, tgt, L.rud_spd, dt)
+        return self._rvt
 
     def _depth_rudder(self, s, phase, dt):
         """Pure PID — no constant bias. Anti-windup integral."""
@@ -75,16 +84,24 @@ class PIDController:
 
         tgt_h = max(-0.55, min(0.55, tgt_h))
 
-        # Roll stabilisation
+        # Roll stabilisation (общий дифференциальный терм для всех рулей)
         rp = P.Kp_roll * s.rpy[0] + P.Kd_roll * s.roll_d
         rp *= max(0.15, 1.0 - (abs(s.z_err) / 5.0))
 
-        raw_hl = max(-0.95, min(0.95, tgt_h - rp - P.roll_bias))
-        raw_hr = max(-0.95, min(0.95, tgt_h + rp + P.roll_bias))
+        # Носовые: глубина зеркальна, крен сонаправлен
+        tgt_h_bow = P.frud_depth_sign * tgt_h
+        rp_bow = P.frud_roll_sign * rp
 
-        self._hl = self._sl(self._hl, raw_hl, L.rud_spd, dt)
-        self._hr = self._sl(self._hr, raw_hr, L.rud_spd, dt)
-        return self._hl, self._hr
+        raw_hl  = max(-0.95, min(0.95, tgt_h - rp - P.roll_bias))
+        raw_hr  = max(-0.95, min(0.95, tgt_h + rp + P.roll_bias))
+        raw_hfl = max(-0.95, min(0.95, tgt_h_bow - rp_bow - P.roll_bias))
+        raw_hfr = max(-0.95, min(0.95, tgt_h_bow + rp_bow + P.roll_bias))
+
+        self._hl  = self._sl(self._hl,  raw_hl,  L.rud_spd, dt)
+        self._hr  = self._sl(self._hr,  raw_hr,  L.rud_spd, dt)
+        self._hfl = self._sl(self._hfl, raw_hfl, L.rud_spd, dt)
+        self._hfr = self._sl(self._hfr, raw_hfr, L.rud_spd, dt)
+        return self._hl, self._hr, self._hfl, self._hfr
 
     def _depth_ballast(self, s, phase, dt):
         self._biz += s.z_err * dt
