@@ -54,11 +54,7 @@ class MixerNB(Node):
         if self.dead:
             return
 
-        if not self.ok and (time.time() - self.start) > 3.0:
-            sys.stdout.write(f"\r⚠️  NO ODOMETRY ({M})...")
-            sys.stdout.flush()
-            return
-
+        # --- Клавиатура читается ВСЕГДА (даже без одометрии) ---
         if select.select([sys.stdin], [], [], 0)[0]:
             k = sys.stdin.read(1)
             if   k == 'i': self.ct = max(-self.mt, min(self.mt, self.ct+2.0))
@@ -80,7 +76,7 @@ class MixerNB(Node):
         # Stabilization
         sp = sr = 0.0
         rvt = 0.0
-        if self.stab:
+        if self.stab and self.ok:
             sp = max(-0.25, min(0.25, (-2.5*self.pitch - 1.0*self.pr)*0.4))
             sr = max(-0.25, min(0.25, (-2.5*self.roll  - 1.0*self.rr)*0.4))
             # Верхний вертикальный руль — отдельный канал крена (НЕ инвертируется)
@@ -100,7 +96,7 @@ class MixerNB(Node):
         self.pub_rt.publish(Float64(data=tr))
 
         sys.stdout.write(
-            f"\r\x1b[K[{'S' if self.stab else 'M'}] "
+            f"\r\x1b[K[{'S' if self.stab else 'M'}|{'ODO' if self.ok else 'no-odo'}] "
             f"T:{self.ct:+3.0f} D:{self.cd:+3.0f} | "
             f"R:{rh:+.2f}/{rv:+.2f} | "
             f"V:{self.vx:+.2f}/{self.vy:+.2f}/{self.vz:+.2f} | "

@@ -65,12 +65,8 @@ class AUVUnifiedNode(Node):
 
     def loop(self):
         if self.shutdown: return
-        if not self.data_ok and (time.time() - self.start_time) > 4.0:
-            sys.stdout.write("\r⚠️  NO ODOMETRY! Waiting...")
-            sys.stdout.flush()
-            if select.select([sys.stdin], [], [], 0)[0]: sys.stdin.read(1)
-            return
 
+        # --- Клавиатура читается ВСЕГДА (даже без одометрии) ---
         if select.select([sys.stdin], [], [], 0)[0]:
             k = sys.stdin.read(1)
             if k=='i': self.cmd_thrust = max(-self.max_thrust, min(self.max_thrust, self.cmd_thrust+2.0))
@@ -91,7 +87,7 @@ class AUVUnifiedNode(Node):
 
         stab_r = stab_p = 0.0
         rud_vt = 0.0
-        if self.stab_on:
+        if self.stab_on and self.data_ok:
             stab_r = max(-0.25, min(0.25, (self.kp_r*(-self.tel_roll)-self.kd_r*self.tel_roll_rate)*0.4))
             stab_p = max(-0.25, min(0.25, (self.kp_p*(-self.tel_pitch)-self.kd_p*self.tel_pitch_rate)*0.4))
             # Верхний вертикальный руль — отдельный канал крена (НЕ инвертируется)
@@ -116,8 +112,9 @@ class AUVUnifiedNode(Node):
         w.wrench.torque.y = self.cmd_ballast_pitch * self.b_torque
         self.pub_wrench.publish(w)
 
+        odo = "ODO" if self.data_ok else "no-odo"
         status = (
-            f"\r\x1b[K[{'S' if self.stab_on else 'M'}] "
+            f"\r\x1b[K[{'S' if self.stab_on else 'M'}|{odo}] "
             f"T:{self.cmd_thrust:+3.0f} D:{self.cmd_diff:+3.0f} | "
             f"R:{rud_h:+.2f}/{rud_v:+.2f} | "
             f"V:{self.tel_vx:+.2f}/{self.tel_vy:+.2f}/{self.tel_vz:+.2f} | "
