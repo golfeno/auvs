@@ -24,14 +24,7 @@
       <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
       <direction>-0.5 0.1 -0.9</direction>
     </light>
-    <model name="ground_plane">
-      <pose>0 0 -50 0 0 0</pose>
-      <static>true</static>
-      <link name="ground_link">
-        <collision name="collision"><geometry><plane><normal>0 0 1</normal><size>1000 1000</size></plane></geometry></collision>
-        <visual name="visual"><geometry><plane><normal>0 0 1</normal><size>1000 1000</size></plane></geometry><material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.3 0.3 0.3 1</diffuse></material></visual>
-      </link>
-    </model>
+    <!-- ground_plane убран: аппарат упирался в дно во время измерений плавучести -->
     <!-- 50 объектов (сокращено для читаемости, структура сохранена) -->
     <model name="obj_01"><static>true</static><pose>-150.2 80.5 -19.2 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>2.0 2.0 2.0</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="collision"><geometry><box><size>2.0 2.0 2.0</size></box></geometry></collision></link></model>
     <model name="obj_02"><static>true</static><pose>-120.5 -90.3 -19.5 0 0 0</pose><link name="link"><visual name="visual"><geometry><sphere><radius>1.5</radius></sphere></geometry><material><ambient>0.2 0.8 0.2 1</ambient></material></visual><collision name="collision"><geometry><sphere><radius>1.5</radius></sphere></geometry></collision></link></model>
