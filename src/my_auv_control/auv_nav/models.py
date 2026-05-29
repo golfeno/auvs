@@ -70,7 +70,7 @@ class Phys:
     DT = 0.02   # 50 Гц — совпадает с частотой одометрии (>=30 Гц)
     MASS = 139.28  # total mass (body 122.7 + ballasts 16.58)
     MAX_BALLAST_VOL = 0.015
-    RUDDER_TRIM_VOL = 0.01   # пост. залив баков в режиме РУЛЕЙ (~+5.5Н при max=0.015)
+    RUDDER_TRIM_VOL = 0.55   # режим рулей: держим ~нейтраль балласта
 
 
 class PID:
@@ -98,7 +98,7 @@ class PID:
     Ki_bz = 0.05
     Kd_bz = 10.0
     bz_ilim = 1.0
-    bz_neutral = 0.10   # ориентир; точную нейтраль найди узлом ballast_neutral
+    bz_neutral = 0.55   # движок нейтрален при 0.5; +чуть на статич.дисбаланс (узел уточнит)
 
 
 class Lim:
