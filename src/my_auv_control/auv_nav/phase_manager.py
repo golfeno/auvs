@@ -48,39 +48,58 @@ class PhaseManager:
         return max(-0.3, min(0.3, c / d))
 
     def evaluate(self, s: VehicleState, t: float) -> str:
-        z_ok = abs(s.z_err) < L.suc_r          # 0.5 — финальная норма по Z
-        xy_ok = s.dist_2d < L.suc_r            # 0.5 — норма по XY
-        z_in_corr = abs(s.z_err) <= L.z_corr_in  # 0.4 — вход в коридор по Z
+        """Автомат фаз:
+          1 NAV        — круиз к XY (далеко, dist >= r_app)
+          2 Z_CORRIDOR — Z достигнут раньше XY: держим коридор и едем дальше (2a)
+          2 Z_STAB     — в зоне XY (dist < r_app), но Z не доведён: правим Z (2b)
+          3 APPROACH   — Z в норме и dist < r_app: стоп → разворот на месте → газ прямо
+          4 HOVER_STAB — XY и Z достигнуты
+        """
+        z_ok = abs(s.z_err) < L.suc_r            # финальная норма по Z (0.5)
+        xy_ok = s.dist_2d < L.suc_r              # финальная норма по XY (0.5)
+        z_in_corr = abs(s.z_err) <= L.z_corr_in  # вход в коридор по Z (0.4)
+        near = s.dist_2d < L.r_app               # зона сближения (3 м)
 
-        # Оба ОК → HOVER
+        # Финал: и XY, и Z в норме
         if z_ok and xy_ok:
             self.state = 'HOVER_STAB'
             return self.state
 
-        # NAV → фаза 2 (две альтернативы):
-        if self.state == 'NAV' and xy_ok and not z_ok:
-            # XY достигнут раньше Z → классический Z_STAB
-            self.state = 'Z_STAB'
-            self.need_pid_reset = True
-        elif self.state == 'NAV' and z_in_corr and not xy_ok:
-            # Z достигнут раньше XY → коридор по Z (альт. фаза 2)
-            self.state = 'Z_CORRIDOR'
-            self.need_pid_reset = True
+        st = self.state
 
-        # Переходы из коридора
-        if self.state == 'Z_CORRIDOR':
-            if xy_ok and not z_ok:
-                # доехали по XY, но Z вне нормы → доводим Z на месте
+        # ---- из NAV ----
+        if st == 'NAV':
+            if near and z_ok:
+                self.state = 'APPROACH'      # рядом и глубина готова → сближение
+            elif near and not z_ok:
+                self.state = 'Z_STAB'        # 2b: подошли по XY, доводим Z
+            elif z_in_corr:
+                self.state = 'Z_CORRIDOR'    # 2a: Z поймали раньше XY
+
+        # ---- из Z_CORRIDOR (2a) ----
+        elif st == 'Z_CORRIDOR':
+            if near and z_ok:
+                self.state = 'APPROACH'
+            elif near and not z_ok:
                 self.state = 'Z_STAB'
-                self.need_pid_reset = True
             elif abs(s.z_err) > L.z_corr:
-                # вылетели из коридора по Z → назад в NAV (восстановить Z)
-                self.state = 'NAV'
-                self.need_pid_reset = True
+                self.state = 'NAV'           # выпали из коридора → восстановить Z
 
-        # Z_STAB → NAV: если Z попали, но XY уехал (дрифт)
-        if self.state == 'Z_STAB' and not xy_ok:
-            self.state = 'NAV'
+        # ---- из Z_STAB (2b) ----
+        elif st == 'Z_STAB':
+            if not near:
+                self.state = 'NAV'           # снесло далеко по XY → снова круиз
+            elif z_ok:
+                self.state = 'APPROACH'      # Z доведён → сближение
+
+        # ---- из APPROACH (3) ----
+        elif st == 'APPROACH':
+            if not z_ok:
+                self.state = 'Z_STAB'        # потеряли Z → вернуть глубину
+            elif not near:
+                self.state = 'NAV'           # утащило далеко → круиз
+
+        if self.state != st:
             self.need_pid_reset = True
 
         return self.state
@@ -130,7 +149,7 @@ class PhaseManager:
             p['yd'] = max(-ylim, min(ylim, yd))
 
         elif self.state == 'Z_STAB':
-            # На месте по XY, корректируем Z
+            # Фаза 2b: в зоне XY, доводим Z (подъём/спуск)
             if self.dm == DepthMode.RUDDER:
                 # Рулям нужен поток → малая скорость вперёд
                 p['bs'] = -4.0
@@ -140,6 +159,21 @@ class PhaseManager:
                 # Балласты: полный стоп
                 p['bs'] = 0.0
                 p['yd'] = 0.0
+
+        elif self.state == 'APPROACH':
+            # Фаза 3: стоп → разворот носом на точку (±align_tol) → газ по прямой.
+            ye = s.yaw_err
+            if abs(ye) > L.align_tol:
+                # НАВЕДЕНИЕ: ход вперёд = 0, моторы враздрай разворачивают на месте
+                p['bs'] = 0.0
+                yd = L.turn_gain * ye
+                p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
+            else:
+                # ГАЗ ПО ПРЯМОЙ: нос наведён, идём прямо с малой коррекцией курса
+                p['bs'] = -L.approach_thrust
+                yd = 3.0 * ye
+                ylim = L.yd_frac * L.approach_thrust
+                p['yd'] = max(-ylim, min(ylim, yd))
 
         # HOVER: нули
         return p
