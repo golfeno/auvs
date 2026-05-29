@@ -50,7 +50,7 @@ class BallastNeutralFinder(Node):
         self.max_iter     = self.get_parameter('max_iter').value
 
         self.pub_b = [self.create_publisher(
-            Float64, f'/model/{MODEL}/ballast_{i}/volume', 10) for i in range(1, 5)]
+            Float64, f'/model/sub_ballast_{i}/buoyancy_engine', 10) for i in range(1, 5)]
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT,
                          history=HistoryPolicy.KEEP_LAST)

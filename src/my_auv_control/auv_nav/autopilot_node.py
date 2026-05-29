@@ -40,7 +40,7 @@ class AUVAutopilotNode(Node):
         self.pub_b = []
         for i in range(1, 5):
             self.pub_b.append(self.create_publisher(
-                Float64, f'/model/submarine/ballast_{i}/volume', 10))
+                Float64, f'/model/sub_ballast_{i}/buoyancy_engine', 10))
 
         self.wps = wps
         self.pub_markers = self.create_publisher(MarkerArray, '/auv/waypoints', 10)

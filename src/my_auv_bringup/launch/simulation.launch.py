@@ -51,10 +51,10 @@ def generate_launch_description():
             '/model/submarine/joint/horizontal_rudder_front_left/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/horizontal_rudder_front_right/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             # Балласты (режимы глубины 2=балласты / 3=оба)
-            '/model/submarine/ballast_1/volume@std_msgs/msg/Float64@gz.msgs.Double',
-            '/model/submarine/ballast_2/volume@std_msgs/msg/Float64@gz.msgs.Double',
-            '/model/submarine/ballast_3/volume@std_msgs/msg/Float64@gz.msgs.Double',
-            '/model/submarine/ballast_4/volume@std_msgs/msg/Float64@gz.msgs.Double',
+            '/model/sub_ballast_1/buoyancy_engine@std_msgs/msg/Float64@gz.msgs.Double',
+            '/model/sub_ballast_2/buoyancy_engine@std_msgs/msg/Float64@gz.msgs.Double',
+            '/model/sub_ballast_3/buoyancy_engine@std_msgs/msg/Float64@gz.msgs.Double',
+            '/model/sub_ballast_4/buoyancy_engine@std_msgs/msg/Float64@gz.msgs.Double',
         ],
         remappings=[('/model/submarine/tf', '/tf')],
         output='screen'
