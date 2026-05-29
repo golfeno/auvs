@@ -3,8 +3,9 @@
 Uses BuoyancyEngine to change ballast volume → changes buoyancy → changes depth.
 
 PID: depth error → ballast volume (0..1)
-- z_err > 0 (too deep) → need more buoyancy → volume UP
-- z_err < 0 (too shallow) → need less buoyancy → volume DOWN
+z_err = pos.z - target.z, pos.z — высота в мире (вверх +).
+- z_err > 0 (ВЫШЕ цели) → надо ВНИЗ → МЕНЬШЕ плавучести → volume DOWN
+- z_err < 0 (НИЖЕ цели) → надо ВВЕРХ → БОЛЬШЕ плавучести → volume UP
 
 Pitch trim: differential ballast between bow and stern.
 """
@@ -44,8 +45,8 @@ class DepthBallastController:
             if abs(s.z_err) < brake_dist * 1.5:
                 Kd *= 2.0
 
-        # PID: positive z_err (too deep) → need more buoyancy → volume UP
-        adj = P.Kp_bz * s.z_err + P.Ki_bz * self._iz + Kd * s.dz_dt
+        # PID (знак минус): z_err>0 (выше цели) → меньше плавучести → volume вниз
+        adj = -(P.Kp_bz * s.z_err + P.Ki_bz * self._iz + Kd * s.dz_dt)
 
         self._vol = max(0.0, min(1.0, P.bz_neutral + adj))
         return self._vol

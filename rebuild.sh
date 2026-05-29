@@ -1,29 +1,35 @@
 #!/usr/bin/env bash
-# Чистая пересборка воркспейса AUV.
-# Главная причина "правки не применяются": colcon для ament_python и data_files
-# (SDF/launch/rviz/yaml) КОПИРУЕТ файлы в install/. Без пересборки запускается старое.
+# Чистая пересборка воркспейса AUV + АВТО-ИНКРЕМЕНТ номера сборки.
 #
-# --symlink-install делает симлинки вместо копий → правки Python/конфигов
-# подхватываются без повторной сборки (модели/launch всё равно лучше пересобирать).
+# Зачем номер: colcon для ament_python и data_files (SDF/launch/rviz) КОПИРУЕТ
+# файлы в install/. Без пересборки запускается старое. Номер сборки печатается
+# в баннере автопилота — всегда видно, что запущена свежая сборка.
+#
+# --symlink-install: правки Python подхватываются без повторной сборки.
 set -e
 cd "$(dirname "$0")"
 
-echo ">>> Останавливаю возможные запущенные ноды..."
+VER_FILE="src/my_auv_control/auv_nav/version.py"
+
+# --- инкремент BUILD_NUMBER ---
+CUR=$(grep -oP 'BUILD_NUMBER\s*=\s*\K[0-9]+' "$VER_FILE")
+NEW=$((CUR + 1))
+sed -i "s/^BUILD_NUMBER = .*/BUILD_NUMBER = $NEW/" "$VER_FILE"
+echo ">>> Номер сборки: $CUR -> $NEW"
+
+echo ">>> Останавливаю запущенные ноды..."
 pkill -f parameter_bridge 2>/dev/null || true
 pkill -f 'ros_gz_sim'      2>/dev/null || true
 
-echo ">>> Удаляю старые install/ build/ (гарантия отсутствия устаревших копий)..."
+echo ">>> Чищу install/ build/ ..."
 rm -rf build install log
 
 echo ">>> colcon build --symlink-install ..."
 colcon build --symlink-install
 
 echo ""
-echo ">>> Готово. Теперь в КАЖДОМ терминале выполни:"
-echo "    source ~/auv/install/setup.bash"
+echo ">>> ГОТОВО. Сборка #$NEW. В каждом терминале:  source ~/auv/install/setup.bash"
 echo ">>> Запуск:"
 echo "    ros2 launch my_auv_bringup simulation.launch.py"
 echo "    ros2 run my_auv_control autopilot"
-echo ""
-echo ">>> При старте автопилота должно печататься: 'AUV Autopilot v53.0'."
-echo "    Если видишь 'v51.4' — значит запущен старый install (не сделал source/rebuild)."
+echo ">>> При старте баннер должен показать: 'СБОРКА #$NEW'. Иначе запущен старый install."

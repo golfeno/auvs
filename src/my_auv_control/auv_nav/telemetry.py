@@ -1,4 +1,4 @@
-"""Telemetry (v53.0) — строка состояния + источники ориентации (IMU/Odo/Kalman) + датчики."""
+"""Telemetry (v54.0) — строка состояния + источники ориентации (IMU/Odo/Kalman) + датчики."""
 import sys, math
 from rclpy.node import Node
 from geometry_msgs.msg import Point
@@ -52,8 +52,14 @@ class Telemetry:
             f"RPY[{src}]:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}°"
         )
 
-        if cmd and hasattr(cmd, 'ballast_volume') and cmd.ballast_volume != 0.5:
-            line += f" B:{cmd.ballast_volume:.0%}"
+        if cmd is not None:
+            rv = math.degrees(getattr(cmd, 'rv', 0.0))
+            rvt = math.degrees(getattr(cmd, 'rvt', 0.0))
+            hl = math.degrees(getattr(cmd, 'hl', 0.0))
+            hr = math.degrees(getattr(cmd, 'hr', 0.0))
+            line += f" | руль вертик.низ:{rv:+.0f}° верх:{rvt:+.0f}° гориз L/R:{hl:+.0f}/{hr:+.0f}°"
+            if hasattr(cmd, 'ballast_volume') and cmd.ballast_volume != 0.5:
+                line += f" B:{cmd.ballast_volume:.0%}"
 
         sys.stdout.write(line)
 

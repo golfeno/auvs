@@ -112,43 +112,48 @@ class PhaseManager:
         dist = s.dist_2d
 
         if self.state == 'NAV':
-            # Едем к точке. Тяга масштабируется с дистанцией, но НЕ гаснет в ноль:
-            # держим минимальный ход, иначе рули теряют поток у самой точки.
-            sc = min(1.0, dist / 15.0)
-            t = L.cruise * sc
-            if ra > 0.15: t *= 0.55
-            # taper по курсу: пока нос не наведён на точку — сбавляем ход,
-            # чтобы доворачивать на месте, а не описывать круги вокруг цели
             import math as _m
-            align = max(0.0, _m.cos(s.yaw_err))
-            t *= (0.25 + 0.75 * align)
-            # пол по модулю тяги (L.cruise отрицательна → ход вперёд)
-            if -t < L.cruise_min:
-                t = -L.cruise_min
-            p['bs'] = t
-            # дифференциал курса ограничиваем долей тяги, чтобы моторы не реверсировали
-            # друг против друга (иначе аппарат крутится на месте вместо подхода)
-            yd = 5.0 * s.yaw_err
-            ylim = L.yd_frac * abs(t)
-            p['yd'] = max(-ylim, min(ylim, yd))
+            # POINT-AND-SHOOT: если нос сильно отвёрнут (>turn_first) — сперва
+            # разворот НА МЕСТЕ полным дифференциалом, ход=0. Иначе аппарат шёл бы
+            # вперёд во время поворота и описывал дугу/«катет» (неэффективный путь).
+            if abs(s.yaw_err) > L.turn_first:
+                p['bs'] = 0.0
+                yd = L.turn_gain * s.yaw_err - L.turn_damp * s.yaw_d
+                p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
+            else:
+                sc = min(1.0, dist / 15.0)
+                t = L.cruise * sc
+                if ra > 0.15: t *= 0.55
+                align = max(0.0, _m.cos(s.yaw_err))
+                t *= (0.25 + 0.75 * align)
+                if -t < L.cruise_min:
+                    t = -L.cruise_min
+                p['bs'] = t
+                yd = 5.0 * s.yaw_err
+                ylim = L.yd_frac * abs(t)
+                p['yd'] = max(-ylim, min(ylim, yd))
 
         elif self.state == 'Z_CORRIDOR':
-            # Альт. фаза 2: продолжаем идти к XY, удерживая Z в коридоре.
-            sc = min(1.0, dist / 15.0)
-            t = L.cruise * sc
-            if ra > 0.15: t *= 0.55
+            # Альт. фаза 2: идём к XY, держим Z в коридоре. Тоже point-and-shoot.
             import math as _m
-            align = max(0.0, _m.cos(s.yaw_err))
-            t *= (0.25 + 0.75 * align)
-            # мягче у края коридора (даём глубине отработать), но не ниже мин. хода
-            z_margin = max(0.0, min(1.0, (L.z_corr - abs(s.z_err)) / max(1e-3, L.z_corr)))
-            t *= (0.5 + 0.5 * z_margin)
-            if -t < L.cruise_min:
-                t = -L.cruise_min
-            p['bs'] = t
-            yd = 5.0 * s.yaw_err
-            ylim = L.yd_frac * abs(t)
-            p['yd'] = max(-ylim, min(ylim, yd))
+            if abs(s.yaw_err) > L.turn_first:
+                p['bs'] = 0.0
+                yd = L.turn_gain * s.yaw_err - L.turn_damp * s.yaw_d
+                p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
+            else:
+                sc = min(1.0, dist / 15.0)
+                t = L.cruise * sc
+                if ra > 0.15: t *= 0.55
+                align = max(0.0, _m.cos(s.yaw_err))
+                t *= (0.25 + 0.75 * align)
+                z_margin = max(0.0, min(1.0, (L.z_corr - abs(s.z_err)) / max(1e-3, L.z_corr)))
+                t *= (0.5 + 0.5 * z_margin)
+                if -t < L.cruise_min:
+                    t = -L.cruise_min
+                p['bs'] = t
+                yd = 5.0 * s.yaw_err
+                ylim = L.yd_frac * abs(t)
+                p['yd'] = max(-ylim, min(ylim, yd))
 
         elif self.state == 'Z_STAB':
             # Фаза 2b: в зоне XY, доводим Z (подъём/спуск)

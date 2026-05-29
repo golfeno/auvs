@@ -13,6 +13,7 @@ from .depth_rudder import DepthRudderController
 from .depth_ballast import DepthBallastController
 from .roll import RollController
 from .telemetry import Telemetry
+from .version import VERSION, BUILD_NUMBER
 
 
 class AUVAutopilotNode(Node):
@@ -123,7 +124,7 @@ class AUVAutopilotNode(Node):
             else:
                 self.pm.state = 'FINISH'
                 self._pub(ActuatorCommands())
-                sys.stdout.write("\n[v53.0] ✓ Миссия завершена! " + str(self.tw) + " точек.\n")
+                sys.stdout.write(f"\n[{VERSION} #{BUILD_NUMBER}] ✓ Миссия завершена! " + str(self.tw) + " точек.\n")
                 sys.stdout.flush()
                 raise SystemExit
         else:
@@ -211,7 +212,7 @@ def _ask(p, v, d=None):
 
 def main():
     print("=" * 50)
-    print("  AUV Autopilot v53.0 — 4 фазы + разворот на месте (полный диф) + IMU/Kalman")
+    print(f"  AUV Autopilot {VERSION} | СБОРКА #{BUILD_NUMBER} | 4 фазы, IMU/Kalman, балласт")
     print("=" * 50)
 
     default_file = os.path.expanduser("~/auv/waypoints.txt")
