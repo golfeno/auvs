@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mass Calibration Tool (v50.29) — full output, barometer-based."""
+"""Mass Calibration Tool (v51.0) — параметризован по модели, актуальные константы."""
 import sys, math, time
 import rclpy
 from rclpy.node import Node
@@ -10,16 +10,36 @@ P_Z0 = 101325.0
 RHO_G = 9810.0
 DURATION = 120.0
 
+# Параметры моделей (актуальные SDF)
+MODELS = {
+    'submarine': {
+        'mass': 124.18,          # корпус 107.5 + 4 балласта (5.88+5.25+3.0+2.554)
+        'hull_radius': 0.17,
+        'hull_length': 1.5,
+        'ballast': (0.375, 0.05, 0.05),  # размер одного бака (одинаковые, по всему килю)
+        'n_ballast': 4,
+    },
+    'submarine_nb': {
+        'mass': 121.8,           # корпус (без балластов)
+        'hull_radius': 0.17,
+        'hull_length': 1.3333333,
+        'ballast': None,
+        'n_ballast': 0,
+    },
+}
+
 
 class MassCalibration(Node):
-    def __init__(self):
+    def __init__(self, model='submarine'):
         super().__init__('mass_calibration')
+        self.model = model
+        self.cfg = MODELS.get(model, MODELS['submarine'])
         self.depth = 0.0
         self.depth_vel = 0.0
         self.data_ok = False
 
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST)
-        self.create_subscription(Float32, '/model/submarine/pressure', self._press_cb, qos)
+        self.create_subscription(Float32, f'/model/{model}/pressure', self._press_cb, qos)
 
         self.samples = []
         self.t0 = None
@@ -27,7 +47,7 @@ class MassCalibration(Node):
         self._last_print = 0
 
         sys.stdout.write("\n" + "="*60 + "\n")
-        sys.stdout.write("  MASS CALIBRATION v50.29\n")
+        sys.stdout.write(f"  MASS CALIBRATION v51.0 | model={model}\n")
         sys.stdout.write("  120 сек, НЕ ТРОГАЙТЕ АППАРАТ!\n")
         sys.stdout.write("="*60 + "\n\n")
         sys.stdout.flush()
@@ -94,7 +114,7 @@ class MassCalibration(Node):
         sys.stdout.write(f"     Vz (макс):       {max_vel:+.4f} м/с\n\n")
 
         # Mass calculation
-        current_mass = 118.15
+        current_mass = self.cfg['mass']
         v = abs(avg_vel)
         if v > 0.001:
             zW = 15.0; zWabsW = 250.0
@@ -175,7 +195,7 @@ class MassCalibration(Node):
             sys.stdout.write(f"     ΔVz:          {vel_end - vel_start:+.4f} м/с\n\n")
 
         # Mass calculation
-        current_mass = 118.53  # из SDF
+        current_mass = self.cfg['mass']  # из SDF
         v = abs(avg_vel)
 
         if v > 0.001:
@@ -205,8 +225,13 @@ class MassCalibration(Node):
             sys.stdout.write(f"  ✅ Аппарат НЕ всплывает (Vz ≈ 0)\n")
 
         # Buoyancy info
-        hull_vol = math.pi * 0.1666667**2 * 1.3333333
-        ballast_vol = 4 * 0.32 * 0.05 * 0.05
+        c = self.cfg
+        hull_vol = math.pi * c['hull_radius']**2 * c['hull_length']
+        if c['ballast']:
+            bx, by, bz = c['ballast']
+            ballast_vol = c['n_ballast'] * bx * by * bz
+        else:
+            ballast_vol = 0.0
         total_vol = hull_vol + ballast_vol
         buoy = 1000 * 9.81 * total_vol
         weight = current_mass * 9.81
@@ -224,8 +249,17 @@ class MassCalibration(Node):
 
 
 def main():
+    print("=" * 40)
+    print("  MASS CALIBRATION")
+    print("=" * 40)
+    print("  1: submarine (с балластами)")
+    print("  2: submarine_nb (без балластов)")
+    r = input("  Выбор [1]: ").strip()
+    model = 'submarine_nb' if r == '2' else 'submarine'
+    print(f"  -> Модель: {model}\n")
+
     rclpy.init()
-    node = MassCalibration()
+    node = MassCalibration(model)
     try:
         rclpy.spin(node)
     except (KeyboardInterrupt, SystemExit):
