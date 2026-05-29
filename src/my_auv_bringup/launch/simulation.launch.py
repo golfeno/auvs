@@ -21,7 +21,7 @@ def generate_launch_description():
 
     spawn = TimerAction(period=4.0, actions=[
         Node(package='ros_gz_sim', executable='create',
-             arguments=['-name', 'submarine', '-file', model_path, '-x', '0', '-y', '0', '-z', '0'],
+             arguments=['-name', 'submarine', '-file', model_path, '-x', '0', '-y', '0', '-z', '-2'],
              output='screen')
     ])
 
@@ -34,10 +34,8 @@ def generate_launch_description():
             '/model/submarine/joint/vertical_rudder/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/horizontal_rudder_left/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/horizontal_rudder_right/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
-            '/model/submarine/ballast_1/volume@std_msgs/msg/Float64@gz.msgs.Double',
-            '/model/submarine/ballast_2/volume@std_msgs/msg/Float64@gz.msgs.Double',
-            '/model/submarine/ballast_3/volume@std_msgs/msg/Float64@gz.msgs.Double',
-            '/model/submarine/ballast_4/volume@std_msgs/msg/Float64@gz.msgs.Double',
+            '/model/submarine/joint/horizontal_rudder_front_left/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
+            '/model/submarine/joint/horizontal_rudder_front_right/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
         ],
         output='screen'
     )

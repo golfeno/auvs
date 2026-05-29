@@ -1,4 +1,4 @@
-"""Sensor Fusion (v50.4)"""
+"""Sensor Fusion (v51.0)."""
 import math
 from typing import List
 from rclpy.node import Node

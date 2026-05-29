@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AUV Control Mixer | Odometry-only Angles & Rates | 1 line output"""
+"""AUV Control Mixer | Parameterized model name for submarine / submarine_nb"""
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
@@ -8,53 +8,51 @@ from geometry_msgs.msg import WrenchStamped
 import sys, termios, tty, select, math, time
 
 class AUVUnifiedNode(Node):
-    def __init__(self):
+    def __init__(self, model_name='submarine'):
         super().__init__('auv_unified')
+        self.mn = model_name
         self.declare_parameter('kp_roll', 2.5); self.declare_parameter('kd_roll', 1.0)
         self.declare_parameter('kp_pitch', 2.5); self.declare_parameter('kd_pitch', 1.0)
         self.declare_parameter('max_rudder', 0.6); self.declare_parameter('max_thrust', 25.0)
         self.declare_parameter('max_heave_force', 300.0); self.declare_parameter('ballast_torque', 25.0)
-        
+
         self.kp_r = self.get_parameter('kp_roll').value; self.kd_r = self.get_parameter('kd_roll').value
         self.kp_p = self.get_parameter('kp_pitch').value; self.kd_p = self.get_parameter('kd_pitch').value
         self.max_rudder = self.get_parameter('max_rudder').value; self.max_thrust = self.get_parameter('max_thrust').value
         self.max_heave = self.get_parameter('max_heave_force').value; self.b_torque = self.get_parameter('ballast_torque').value
 
-        self.pub_lt = self.create_publisher(Float64, '/model/submarine/joint/left_propeller_joint/cmd_force', 10)
-        self.pub_rt = self.create_publisher(Float64, '/model/submarine/joint/right_propeller_joint/cmd_force', 10)
-        self.pub_vert = self.create_publisher(Float64, '/model/submarine/joint/vertical_rudder/cmd_position', 10)
-        self.pub_hl = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_left/cmd_position', 10)
-        self.pub_hr = self.create_publisher(Float64, '/model/submarine/joint/horizontal_rudder_right/cmd_position', 10)
-        self.pub_wrench = self.create_publisher(WrenchStamped, '/model/submarine/link/body/wrench', 10)
+        m = self.mn
+        self.pub_lt = self.create_publisher(Float64, f'/model/{m}/joint/left_propeller_joint/cmd_force', 10)
+        self.pub_rt = self.create_publisher(Float64, f'/model/{m}/joint/right_propeller_joint/cmd_force', 10)
+        self.pub_vert = self.create_publisher(Float64, f'/model/{m}/joint/vertical_rudder/cmd_position', 10)
+        self.pub_hl = self.create_publisher(Float64, f'/model/{m}/joint/horizontal_rudder_left/cmd_position', 10)
+        self.pub_hr = self.create_publisher(Float64, f'/model/{m}/joint/horizontal_rudder_right/cmd_position', 10)
+        self.pub_wrench = self.create_publisher(WrenchStamped, f'/model/{m}/link/body/wrench', 10)
 
-        self.create_subscription(Odometry, '/model/submarine/odometry', self.odom_cb, 10)
+        self.create_subscription(Odometry, f'/model/{m}/odometry', self.odom_cb, 10)
 
-        # Commands
         self.cmd_thrust=0.0; self.cmd_diff=0.0; self.cmd_yaw=0.0; self.cmd_pitch=0.0
         self.cmd_ballast_pitch=0.0; self.cmd_ballast_heave=0.0
-        # Telemetry
         self.tel_roll=0.0; self.tel_pitch=0.0; self.tel_yaw=0.0
         self.prev_roll=0.0; self.prev_pitch=0.0; self.prev_yaw=0.0
         self.tel_roll_rate=0.0; self.tel_pitch_rate=0.0; self.tel_yaw_rate=0.0
         self.tel_vx=0.0; self.tel_vy=0.0; self.tel_vz=0.0
-        
+
         self.stab_on = False; self.shutdown = False
         self.data_ok = False; self.start_time = time.time()
 
         self.fd = sys.stdin.fileno(); self.old = termios.tcgetattr(self.fd); tty.setraw(self.fd)
-        self.timer = self.create_timer(0.05, self.loop) # 20 Гц
+        self.timer = self.create_timer(0.05, self.loop)
 
     def odom_cb(self, msg):
         self.data_ok = True
         self.tel_vx = msg.twist.twist.linear.x
         self.tel_vy = msg.twist.twist.linear.y
         self.tel_vz = msg.twist.twist.linear.z
-        
         q = msg.pose.pose.orientation
         r = math.atan2(2*(q.w*q.x + q.y*q.z), 1-2*(q.x**2 + q.y**2))
         p = math.asin(max(-1.0, min(1.0, 2*(q.w*q.y - q.z*q.x))))
         y = math.atan2(2*(q.w*q.z + q.x*q.y), 1-2*(q.y**2 + q.z**2))
-        
         dt = 0.05
         self.tel_roll_rate  = (r - self.prev_roll) / dt
         self.tel_pitch_rate = (p - self.prev_pitch) / dt
@@ -65,7 +63,7 @@ class AUVUnifiedNode(Node):
     def loop(self):
         if self.shutdown: return
         if not self.data_ok and (time.time() - self.start_time) > 4.0:
-            sys.stdout.write("\r⚠️  NO ODOMETRY DATA! Check Gazebo/Bridge. Waiting...")
+            sys.stdout.write("\r⚠️  NO ODOMETRY! Waiting...")
             sys.stdout.flush()
             if select.select([sys.stdin], [], [], 0)[0]: sys.stdin.read(1)
             return
@@ -99,6 +97,7 @@ class AUVUnifiedNode(Node):
         thr_r = -max(-self.max_thrust, min(self.max_thrust, self.cmd_thrust - self.cmd_diff))
 
         self.pub_hl.publish(Float64(data=rud_h)); self.pub_hr.publish(Float64(data=rud_h))
+        self.pub_hfl.publish(Float64(data=-rud_h)); self.pub_hfr.publish(Float64(data=-rud_h))
         self.pub_vert.publish(Float64(data=rud_v))
         self.pub_lt.publish(Float64(data=thr_l)); self.pub_rt.publish(Float64(data=thr_r))
         w = WrenchStamped()
@@ -106,13 +105,13 @@ class AUVUnifiedNode(Node):
         w.wrench.torque.y = self.cmd_ballast_pitch * self.b_torque
         self.pub_wrench.publish(w)
 
-        status = (f"\r\x1b[K[{'S' if self.stab_on else 'M'}] "
-                  f"T:{self.cmd_thrust:+3.0f} D:{self.cmd_diff:+3.0f} | "
-                  f"R:{rud_h:+.2f}/{rud_v:+.2f} | "
-                  f"B:{self.cmd_ballast_heave:+4.0f}/{self.cmd_ballast_pitch:+.2f} | "
-                  f"V:{self.tel_vx:+.2f}/{self.tel_vy:+.2f}/{self.tel_vz:+.2f} | "
-                  f"W:{math.degrees(self.tel_roll_rate):+4.1f}/{math.degrees(self.tel_pitch_rate):+4.1f}/{math.degrees(self.tel_yaw_rate):+4.1f} | "
-                  f"A:{math.degrees(self.tel_roll):+4.1f}/{math.degrees(self.tel_pitch):+4.1f}/{math.degrees(self.tel_yaw):+4.1f}")
+        status = (
+            f"\r\x1b[K[{'S' if self.stab_on else 'M'}] "
+            f"T:{self.cmd_thrust:+3.0f} D:{self.cmd_diff:+3.0f} | "
+            f"R:{rud_h:+.2f}/{rud_v:+.2f} | "
+            f"V:{self.tel_vx:+.2f}/{self.tel_vy:+.2f}/{self.tel_vz:+.2f} | "
+            f"A:{math.degrees(self.tel_roll):+.0f}/{math.degrees(self.tel_pitch):+.0f}/{math.degrees(self.tel_yaw):+.0f}"
+        )
         sys.stdout.write(status)
         sys.stdout.flush()
 
@@ -120,7 +119,7 @@ class AUVUnifiedNode(Node):
         self.cmd_thrust=0.0; self.cmd_diff=0.0; self.cmd_pitch=0.0; self.cmd_yaw=0.0
         self.cmd_ballast_pitch=0.0; self.cmd_ballast_heave=0.0
         zero = Float64(data=0.0)
-        for p in [self.pub_lt, self.pub_rt, self.pub_vert, self.pub_hl, self.pub_hr]: p.publish(zero)
+        for p in [self.pub_lt, self.pub_rt, self.pub_vert, self.pub_hl, self.pub_hr, self.pub_hfl, self.pub_hfr]: p.publish(zero)
         self.pub_wrench.publish(WrenchStamped())
 
     def cleanup(self):
@@ -133,8 +132,18 @@ class AUVUnifiedNode(Node):
         finally: self.cleanup()
 
 def main(args=None):
-    rclpy.init(args=args); node = AUVUnifiedNode()
-    node.get_logger().info("🎮 I/K=Thrust, J/L=Diff, W/S=Pitch, A/D=Yaw, U/O=Trim, F/B=Heave, T=STAB, SPACE=STOP, ESC=Quit")
+    # Выбор модели
+    print("=" * 40)
+    print("  AUV Mixer")
+    print("=" * 40)
+    print("  1: submarine (оригинал)")
+    print("  2: submarine_nb (без балластов)")
+    r = input("  Выбор [1]: ").strip()
+    model = 'submarine_nb' if r == '2' else 'submarine'
+    print(f"  → Модель: {model}\n")
+
+    rclpy.init(args=args); node = AUVUnifiedNode(model)
+    node.get_logger().info(f"🎮 Model={model} | I/K=Thrust J/L=Diff W/S=Pitch A/D=Yaw T=STAB SPACE=STOP ESC=Quit")
     try: node.run()
     except KeyboardInterrupt: pass
     finally: node.destroy_node(); rclpy.shutdown()

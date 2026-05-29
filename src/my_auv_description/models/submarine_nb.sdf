@@ -1,6 +1,6 @@
 <?xml version="1.0" ?>
 <sdf version="1.6">
-  <model name="submarine">
+  <model name="submarine_nb">
     <pose>0 0 0 0 0 0</pose>
 
     <!-- ===== КОРПУС ===== -->
@@ -8,7 +8,7 @@
       <pose>0.1 0 0 0 1.5707963267948966 0</pose>
       <inertial>
         <pose>0.2 0 0 0 0 0</pose>
-        <mass>107.5</mass>
+        <mass>121.8</mass>
         <inertia>
           <ixx>1.64</ixx><iyy>18.33</iyy><izz>18.33</izz>
           <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
@@ -19,15 +19,15 @@
         </fluid_added_mass>
       </inertial>
       <visual name="body_visual">
-        <geometry><cylinder><radius>0.17</radius><length>1.5</length></cylinder></geometry>
+        <geometry><cylinder><radius>0.17</radius><length>1.3333333</length></cylinder></geometry>
         <material><ambient>0.2 0.5 0.8 1</ambient></material>
       </visual>
       <collision name="body_collision">
-        <geometry><cylinder><radius>0.17</radius><length>1.5</length></cylinder></geometry>
+        <geometry><cylinder><radius>0.17</radius><length>1.3333333</length></cylinder></geometry>
       </collision>
       <sensor name="imu_sensor" type="imu">
         <always_on>1</always_on><update_rate>100</update_rate>
-        <topic>/model/submarine/imu</topic>
+        <topic>/model/submarine_nb/imu</topic>
       </sensor>
       <sensor name="pressure_sensor" type="air_pressure">
         <always_on>1</always_on><update_rate>50</update_rate>
@@ -99,18 +99,18 @@
 
     <!-- Горизонтальный правый руль -->
     <link name="horizontal_rudder_right">
-      <pose>-0.5 0.27 0 0 0 0</pose>
+      <pose>-0.5 0.45 -0.2 0 0 0</pose>
       <inertial>
         <mass>0.02315</mass>
         <inertia><ixx>0.00000129</ixx><iyy>0.00000129</iyy><izz>0.00000129</izz>
           <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
       </inertial>
       <visual name="hrr_v">
-        <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
+        <geometry><box><size>0.3 0.3 0.005</size></box></geometry>
         <material><ambient>0.2 0.5 0.8 1</ambient></material>
       </visual>
       <collision name="hrr_c">
-        <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
+        <geometry><box><size>0.3 0.3 0.005</size></box></geometry>
       </collision>
     </link>
     <joint name="horizontal_rudder_right_joint" type="revolute">
@@ -123,7 +123,7 @@
     </joint>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
       <joint_name>horizontal_rudder_right_joint</joint_name>
-      <topic>/model/submarine/joint/horizontal_rudder_right/cmd_position</topic>
+      <topic>/model/submarine_nb/joint/horizontal_rudder_right/cmd_position</topic>
       <p_gain>10</p_gain>
     </plugin>
     <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
@@ -138,18 +138,18 @@
 
     <!-- Горизонтальный левый руль -->
     <link name="horizontal_rudder_left">
-      <pose>-0.5 -0.27 0 0 0 0</pose>
+      <pose>-0.5 -0.45 -0.2 0 0 0</pose>
       <inertial>
         <mass>0.02315</mass>
         <inertia><ixx>0.00000129</ixx><iyy>0.00000129</iyy><izz>0.00000129</izz>
           <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
       </inertial>
       <visual name="hrl_v">
-        <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
+        <geometry><box><size>0.3 0.3 0.005</size></box></geometry>
         <material><ambient>0.2 0.5 0.8 1</ambient></material>
       </visual>
       <collision name="hrl_c">
-        <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
+        <geometry><box><size>0.3 0.3 0.005</size></box></geometry>
       </collision>
     </link>
     <joint name="horizontal_rudder_left_joint" type="revolute">
@@ -162,7 +162,7 @@
     </joint>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
       <joint_name>horizontal_rudder_left_joint</joint_name>
-      <topic>/model/submarine/joint/horizontal_rudder_left/cmd_position</topic>
+      <topic>/model/submarine_nb/joint/horizontal_rudder_left/cmd_position</topic>
       <p_gain>10</p_gain>
     </plugin>
     <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
@@ -177,7 +177,7 @@
 
     <!-- Вертикальный руль -->
     <link name="vertical_rudder">
-      <pose>-0.75 0 -0.27 1.5708 1.5708 0</pose>
+      <pose>-0.7666667 0 -0.2833333 1.5708 1.5708 0</pose>
       <inertial>
         <mass>0.02315</mass>
         <inertia><ixx>0.00000129</ixx><iyy>0.00000129</iyy><izz>0.00000129</izz>
@@ -201,7 +201,7 @@
     </joint>
     <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
       <joint_name>vertical_rudder_joint</joint_name>
-      <topic>/model/submarine/joint/vertical_rudder/cmd_position</topic>
+      <topic>/model/submarine_nb/joint/vertical_rudder/cmd_position</topic>
       <p_gain>10</p_gain>
     </plugin>
     <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
@@ -214,107 +214,12 @@
       <cp>0 0 0</cp>
     </plugin>
 
-
-    <!-- ===== НОСОВЫЕ ГОРИЗОНТАЛЬНЫЕ РУЛИ (зеркально кормовых) ===== -->
-
-    <!-- Носовой правый руль -->
-    <link name="horizontal_rudder_front_right">
-      <pose>0.5 -0.27 0 0 0 0</pose>
-      <inertial>
-        <mass>0.02315</mass>
-        <inertia><ixx>0.00000129</ixx><iyy>0.00000129</iyy><izz>0.00000129</izz>
-          <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
-      </inertial>
-      <visual name="hfrr_v">
-        <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
-        <material><ambient>0.2 0.5 0.8 1</ambient></material>
-      </visual>
-      <collision name="hfrr_c">
-        <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
-      </collision>
-    </link>
-    <joint name="horizontal_rudder_front_right_joint" type="revolute">
-      <parent>body</parent><child>horizontal_rudder_front_right</child>
-      <axis>
-        <xyz>0 -1 0</xyz>
-        <limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit>
-        <dynamics><damping>10.0</damping></dynamics>
-      </axis>
-    </joint>
-    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
-      <joint_name>horizontal_rudder_front_right_joint</joint_name>
-      <topic>/model/submarine/joint/horizontal_rudder_front_right/cmd_position</topic>
-      <p_gain>10</p_gain>
-    </plugin>
-    <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
-      <air_density>1000</air_density>
-      <link_name>horizontal_rudder_front_right</link_name>
-      <area>0.014</area><cla>2.5</cla><cla_stall>-0.5</cla_stall>
-      <cda>0.5</cda><cda_stall>1.5</cda_stall>
-      <alpha_stall>1.2</alpha_stall><a0>0</a0>
-      <upward>0 0 1</upward><forward>1 0 0</forward>
-      <cp>0 0 0</cp>
-    </plugin>
-
-    <!-- Носовой левый руль -->
-    <link name="horizontal_rudder_front_left">
-      <pose>0.5 0.27 0 0 0 0</pose>
-      <inertial>
-        <mass>0.02315</mass>
-        <inertia><ixx>0.00000129</ixx><iyy>0.00000129</iyy><izz>0.00000129</izz>
-          <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
-      </inertial>
-      <visual name="hfrl_v">
-        <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
-        <material><ambient>0.2 0.5 0.8 1</ambient></material>
-      </visual>
-      <collision name="hfrl_c">
-        <geometry><box><size>0.1 0.2 0.005</size></box></geometry>
-      </collision>
-    </link>
-    <joint name="horizontal_rudder_front_left_joint" type="revolute">
-      <parent>body</parent><child>horizontal_rudder_front_left</child>
-      <axis>
-        <xyz>0 -1 0</xyz>
-        <limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit>
-        <dynamics><damping>10.0</damping></dynamics>
-      </axis>
-    </joint>
-    <plugin filename="gz-sim-joint-position-controller-system" name="gz::sim::systems::JointPositionController">
-      <joint_name>horizontal_rudder_front_left_joint</joint_name>
-      <topic>/model/submarine/joint/horizontal_rudder_front_left/cmd_position</topic>
-      <p_gain>10</p_gain>
-    </plugin>
-    <plugin filename="gz-sim-lift-drag-system" name="gz::sim::systems::LiftDrag">
-      <air_density>1000</air_density>
-      <link_name>horizontal_rudder_front_left</link_name>
-      <area>0.014</area><cla>2.5</cla><cla_stall>-0.5</cla_stall>
-      <cda>0.5</cda><cda_stall>1.5</cda_stall>
-      <alpha_stall>1.2</alpha_stall><a0>0</a0>
-      <upward>0 0 1</upward><forward>1 0 0</forward>
-      <cp>0 0 0</cp>
-    </plugin>
-
     <!-- ===== БАЛЛАСТЫ ===== -->
-    <link name="ballast_1"><pose>0.49 0 -0.2 0 0 0</pose><inertial><mass>5.88</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b1_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="b1_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
-    <joint name="ballast_1_joint" type="fixed"><parent>body</parent><child>ballast_1</child></joint>
-    <link name="ballast_2"><pose>0.17 0 -0.2 0 0 0</pose><inertial><mass>5.25</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b2_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="b2_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
-    <joint name="ballast_2_joint" type="fixed"><parent>body</parent><child>ballast_2</child></joint>
-    <link name="ballast_3"><pose>-0.17 0 -0.2 0 0 0</pose><inertial><mass>3.0</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b3_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="b3_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
-    <joint name="ballast_3_joint" type="fixed"><parent>body</parent><child>ballast_3</child></joint>
-    <link name="ballast_4"><pose>-0.49 0 -0.2 0 0 0</pose><inertial><mass>2.554</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b4_v"><geometry><box><size>0.32 0.05 0.05</size></box></geometry><material><ambient>0.8 0.2 0.2 1</ambient></material></visual><collision name="b4_c"><geometry><box><size>0.32 0.05 0.05</size></box></geometry></collision></link>
-    <joint name="ballast_4_joint" type="fixed"><parent>body</parent><child>ballast_4</child></joint>
-
-    <plugin filename="gz-sim-buoyancy-engine-system" name="gz::sim::systems::BuoyancyEngine"><link_name>ballast_1</link_name><min_volume>0.0</min_volume><max_volume>0.003</max_volume><topic>/model/submarine/ballast_1/volume</topic></plugin>
-    <plugin filename="gz-sim-buoyancy-engine-system" name="gz::sim::systems::BuoyancyEngine"><link_name>ballast_2</link_name><min_volume>0.0</min_volume><max_volume>0.003</max_volume><topic>/model/submarine/ballast_2/volume</topic></plugin>
-    <plugin filename="gz-sim-buoyancy-engine-system" name="gz::sim::systems::BuoyancyEngine"><link_name>ballast_3</link_name><min_volume>0.0</min_volume><max_volume>0.003</max_volume><topic>/model/submarine/ballast_3/volume</topic></plugin>
-    <plugin filename="gz-sim-buoyancy-engine-system" name="gz::sim::systems::BuoyancyEngine"><link_name>ballast_4</link_name><min_volume>0.0</min_volume><max_volume>0.003</max_volume><topic>/model/submarine/ballast_4/volume</topic></plugin>
-
-    <!-- ===== СИСТЕМНЫЕ ПЛАГИНЫ ===== -->
+<!-- ===== СИСТЕМНЫЕ ПЛАГИНЫ ===== -->
     <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
       <odom_frame>world</odom_frame>
-      <robot_base_frame>submarine/body</robot_base_frame>
-      <odom_topic>/model/submarine/odometry</odom_topic>
+      <robot_base_frame>submarine_nb/body</robot_base_frame>
+      <odom_topic>/model/submarine_nb/odometry</odom_topic>
       <odom_publish_frequency>50</odom_publish_frequency>
     </plugin>
 

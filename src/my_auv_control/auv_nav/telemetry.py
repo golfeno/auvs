@@ -1,13 +1,13 @@
-"""Telemetry (v50.27) — robust publishing, single line."""
+"""Telemetry (v51.0) — single updating line."""
 import sys, math
 from rclpy.node import Node
 from geometry_msgs.msg import Point
 from std_msgs.msg import String
-from .models import VehicleState, PHASE_TR
+from .models import VehicleState, PHASE_TR, ActuatorCommands
 
 
 class Telemetry:
-    def __init__(self, node, dm=None):
+    def __init__(self, node):
         self.n = node
         self.pub_pos = node.create_publisher(Point, '/auv/position', 10)
         self.pub_status = node.create_publisher(String, '/auv/status', 10)
@@ -18,9 +18,7 @@ class Telemetry:
     def analytics(self, s, phase, wp_idx):
         try:
             p = Point()
-            p.x = float(s.pos[0])
-            p.y = float(s.pos[1])
-            p.z = float(s.pos[2])
+            p.x = float(s.pos[0]); p.y = float(s.pos[1]); p.z = float(s.pos[2])
             self.pub_pos.publish(p)
             m = String()
             m.data = str(wp_idx+1) + "_" + str(phase)
@@ -43,14 +41,16 @@ class Telemetry:
         yd = math.degrees(s.rpy[2])
 
         line = (
-            "\r\033[K"
-            "WP " + str(wp_idx+1) + "/" + str(tw) + " " + ru + " "
-            "X:" + format(s.pos[0], '+6.1f') + " Y:" + format(s.pos[1], '+6.1f') + " Z:" + format(s.pos[2], '+5.2f') + " "
-            "V:" + format(s.vel, '+.2f') + " Vz:" + format(s.dz_dt, '+.2f') + " "
-            "Ax:" + format(self._ax, '+.1f') + " Az:" + format(self._az, '+.1f') + " "
-            "D:" + format(s.dist_2d, '4.1f') + "m dZ:" + format(s.z_err, '+.2f') + " "
-            "R:" + format(rd, '+.0f') + " P:" + format(pd, '+.0f') + " Y:" + format(yd, '+.0f')
+            f"\r\033[K"
+            f"WP {wp_idx+1}/{tw} {ru:<10s} "
+            f"X:{s.pos[0]:+6.1f} Y:{s.pos[1]:+6.1f} Z:{s.pos[2]:+5.2f} "
+            f"V:{s.vel:+.2f} Vz:{s.dz_dt:+.2f} "
+            f"D:{s.dist_2d:4.1f}m dZ:{s.z_err:+.2f} "
+            f"R:{rd:+.0f}°P:{pd:+.0f}°Y:{yd:+.0f}°"
         )
+
+        if cmd and hasattr(cmd, 'ballast_volume') and cmd.ballast_volume != 0.5:
+            line += f" B:{cmd.ballast_volume:.0%}"
 
         sys.stdout.write(line)
         sys.stdout.flush()
