@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AUV Autopilot v51.2 — clean, no ballast zeroing."""
+"""AUV Autopilot v53.0 — 4 фазы (NAV/Z/APPROACH/HOVER), IMU-ремап, полный диф в развороте."""
 import sys, os
 import rclpy
 from rclpy.node import Node
@@ -46,7 +46,7 @@ class AUVAutopilotNode(Node):
         self.pm.init_wp(t0, [0.0, 0.0, 0.0])
 
     def _loop(self):
-        # v51.4
+        # v53.0
         if self.pm.state == 'FINISH':
             return
 
@@ -57,8 +57,13 @@ class AUVAutopilotNode(Node):
         self.pm.update_drift(self.sf.state, t, Phys.DT)
 
         s = self.sf.state
+        prev_ph = self.pm.state
         ph = self.pm.evaluate(s, t)
         tp = self.pm.params(s)
+        if ph != prev_ph:
+            import sys as _sys
+            _sys.stdout.write(f"\n>>> ФАЗА: {prev_ph} -> {ph}  (d2d={s.dist_2d:.2f} z_err={s.z_err:+.2f} yaw_err={s.yaw_err:+.2f})\n")
+            _sys.stdout.flush()
 
         # Reset on phase change
         if self.pm.need_pid_reset:
@@ -113,7 +118,7 @@ class AUVAutopilotNode(Node):
             else:
                 self.pm.state = 'FINISH'
                 self._pub(ActuatorCommands())
-                sys.stdout.write("\n[v51.2] ✓ Миссия завершена! " + str(self.tw) + " точек.\n")
+                sys.stdout.write("\n[v53.0] ✓ Миссия завершена! " + str(self.tw) + " точек.\n")
                 sys.stdout.flush()
                 raise SystemExit
         else:
@@ -165,7 +170,7 @@ def _ask(p, v, d=None):
 
 def main():
     print("=" * 50)
-    print("  AUV Autopilot v51.4 — BALLAST: stop if Z off, cruise if Z ok")
+    print("  AUV Autopilot v53.0 — 4 фазы + разворот на месте (полный диф) + IMU/Kalman")
     print("=" * 50)
 
     default_file = os.path.expanduser("~/auv/waypoints.txt")
