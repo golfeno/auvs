@@ -28,6 +28,7 @@ setup(
             'mixer_nb          = my_auv_control.mixer_nb:main',
             'alt_ballast       = my_auv_control.alt_ballast_control:main',
             'mass_calibration  = my_auv_control.mass_calibration:main',
+            'ballast_neutral   = my_auv_control.ballast_neutral_finder:main',
             'test_straight     = my_auv_control.auv_test_straight:main',
             'test_telemetry    = my_auv_control.test_straight:main',
         ],
