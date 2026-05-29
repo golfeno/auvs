@@ -2,7 +2,9 @@
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription, TimerAction
+from launch.actions import IncludeLaunchDescription, TimerAction, DeclareLaunchArgument
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
 
@@ -13,6 +15,11 @@ def generate_launch_description():
 
     world_path  = os.path.join(pkg_bringup, 'worlds', 'static_world.sdf')
     model_path  = os.path.join(pkg_desc,    'models', 'submarine.sdf')
+    rviz_cfg    = os.path.join(pkg_bringup, 'config', 'auv.rviz')
+
+    use_rviz = LaunchConfiguration('rviz')
+    declare_rviz = DeclareLaunchArgument('rviz', default_value='true',
+                                         description='Запускать RViz2 (true/false)')
 
     gz_sim = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(pkg_gz_sim, 'launch', 'gz_sim.launch.py')),
@@ -55,4 +62,27 @@ def generate_launch_description():
         name='virtual_barometer', output='screen'
     )
 
-    return LaunchDescription([gz_sim, spawn, bridge, fake_baro])
+    # --- TF: связки кадров сенсоров с корпусом (нужно RViz для отрисовки сканов) ---
+    # frame_id сканов Gazebo = "<model>/<link>/<sensor>" относительно кадра звена body.
+    tf_sonar = Node(
+        package='tf2_ros', executable='static_transform_publisher', output='log',
+        arguments=['0.75', '0', '0', '0', '0', '0',
+                   'submarine/body', 'submarine/body/sonar_sensor']
+    )
+    tf_alt = Node(
+        package='tf2_ros', executable='static_transform_publisher', output='log',
+        arguments=['0', '0', '-0.17', '0', '1.5707963', '0',
+                   'submarine/body', 'submarine/body/altimeter_sensor']
+    )
+
+    # --- RViz2 (визуализация сонара/альтиметра/одометрии) ---
+    rviz = Node(
+        package='rviz2', executable='rviz2', name='rviz2',
+        arguments=['-d', rviz_cfg], output='screen',
+        condition=IfCondition(use_rviz)
+    )
+
+    return LaunchDescription([
+        declare_rviz, gz_sim, spawn, bridge, fake_baro,
+        tf_sonar, tf_alt, rviz,
+    ])
