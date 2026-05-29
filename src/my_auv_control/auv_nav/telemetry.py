@@ -1,4 +1,4 @@
-"""Telemetry (v52.0) — строка состояния + источники ориентации (IMU/Odo/Fused)."""
+"""Telemetry (v53.0) — строка состояния + источники ориентации (IMU/Odo/Kalman) + датчики."""
 import sys, math
 from rclpy.node import Node
 from geometry_msgs.msg import Point
@@ -41,7 +41,7 @@ class Telemetry:
         # отдельные источники
         ri, pi_, yi = (math.degrees(a) for a in s.rpy_imu)
         ro, po, yo = (math.degrees(a) for a in s.rpy_odo)
-        src = "IMU+ODO" if s.imu_ok else "ODO"
+        src = "KALMAN" if s.imu_ok else "ODO"
 
         line = (
             f"\r\033[K"
@@ -60,12 +60,14 @@ class Telemetry:
         # Вторая строка с разбивкой по источникам (реже, чтобы не засорять)
         if t - getattr(self, '_t_src', 0.0) >= 1.0:
             self._t_src = t
+            mh = math.degrees(s.mag_heading) if s.mag_ok else float('nan')
+            alt = f"{s.alt_floor:.1f}m" if s.alt_floor >= 0 else "--"
+            son = f"{s.sonar_fwd:.1f}m" if (s.sonar_ok and s.sonar_fwd >= 0) else "чисто"
             sys.stdout.write(
-                f"\n    └─ ориентация R/P/Y°  "
-                f"IMU:{ri:+.0f}/{pi_:+.0f}/{yi:+.0f}  "
+                f"\n    └─ R/P/Y°  IMU:{ri:+.0f}/{pi_:+.0f}/{yi:+.0f}  "
                 f"ODO:{ro:+.0f}/{po:+.0f}/{yo:+.0f}  "
-                f"FUSED:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}  "
-                f"gyro(p/q/r):{s.gyro[0]:+.2f}/{s.gyro[1]:+.2f}/{s.gyro[2]:+.2f}\n"
+                f"KALMAN:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}  "
+                f"| Mag:{mh:+.0f}°  Дно:{alt}  Сонар:{son}\n"
             )
         sys.stdout.flush()
 

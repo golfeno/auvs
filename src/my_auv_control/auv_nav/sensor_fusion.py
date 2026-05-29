@@ -1,23 +1,25 @@
-"""Sensor Fusion (v52.0) — IMU + Odometry + комплементарный фильтр.
+"""Sensor Fusion (v53.0) — фильтр Калмана (IMU + Одометрия + Магнитометр) + Сонар/Альтиметр.
 
-Источники ориентации:
-  • ОДОМЕТРИЯ  (50 Гц): абсолютная ориентация из позы (без дрейфа, но «грубее»,
-                низкая частота, может запаздывать).
-  • IMU        (100 Гц): гироскоп даёт чистые угловые скорости (быстро, малошумно
-                на коротком окне), но интегрирование угла даёт ДРЕЙФ.
+Оценка ориентации — линейный фильтр Калмана по каждой оси (roll, pitch, yaw):
+  Состояние:  x = угол (рад)
+  ПРОГНОЗ (predict): из гироскопа IMU (быстро, 100 Гц), но он копит дрейф →
+      x⁻ = x + gyro·dt ;   P⁻ = P + Q
+  КОРРЕКЦИЯ (update): по абсолютному измерению (одометрия для roll/pitch/yaw;
+      дополнительно магнитометр для yaw — убирает дрейф курса):
+      K = P⁻ / (P⁻ + R) ;   x = x⁻ + K·wrap(z − x⁻) ;   P = (1−K)·P⁻
+  Q — доверие к модели гироскопа, R — шум измерения. Меньше R → больше веры
+  измерению. Это классический алгоритм навигации (упрощённый AHRS-EKF до 1D).
 
-Слияние — КОМПЛЕМЕНТАРНЫЙ ФИЛЬТР (classic complementary filter):
-    angle = a * (angle + gyro * dt) + (1 - a) * angle_odom
-  - высокочастотную часть берём из гироскопа (быстрый отклик),
-  - низкочастотную (опорную, без дрейфа) — из одометрии.
-  Это упрощённый аналог фильтра Калмана для AHRS; широко применяется в навигации,
-  когда полноценный EKF избыточен.
+Дополнительные датчики (не входят в оценку ориентации, дают ситуац. данные):
+  • МАГНИТОМЕТР → абсолютный курс (коррекция yaw в фильтре).
+  • АЛЬТИМЕТР (эхолот вниз) → высота над дном.
+  • СОНАР (эхолот вперёд) → дистанция до ближайшего препятствия.
 """
 import math
 from typing import List
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import Imu
+from sensor_msgs.msg import Imu, MagneticField, LaserScan
 from std_msgs.msg import Float32
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from .models import VehicleState, Phys
@@ -31,44 +33,69 @@ def _quat_to_rpy(q):
 
 
 def _wrap(a):
-    """Нормализация угла в [-pi, pi]."""
     return math.atan2(math.sin(a), math.cos(a))
 
 
-class SensorFusion:
-    # Коэффициент комплементарного фильтра (доля гироскопа).
-    # 0.98 → 98% гироскоп / 2% одометрия. Постоянная времени ~ a*dt/(1-a).
-    ALPHA = 0.98
+class _Kalman1D:
+    """Скалярный фильтр Калмана для одного угла (predict по gyro, update по абс. измерению)."""
+    def __init__(self, q=1e-4, r=2e-2):
+        self.x = 0.0      # оценка угла
+        self.P = 1.0      # ковариация ошибки
+        self.Q = q        # шум процесса (доверие к гироскопу)
+        self.R = r        # шум измерения (одометрия)
+        self.init = False
 
+    def predict(self, gyro, dt):
+        if not self.init:
+            return
+        self.x = _wrap(self.x + gyro * dt)
+        self.P += self.Q
+
+    def update(self, z, R=None):
+        R = self.R if R is None else R
+        if not self.init:
+            self.x = z
+            self.P = 1.0
+            self.init = True
+            return
+        K = self.P / (self.P + R)
+        self.x = _wrap(self.x + K * _wrap(z - self.x))
+        self.P = (1.0 - K) * self.P
+
+
+class SensorFusion:
     def __init__(self, node: Node):
         self.node = node
         self.state = VehicleState()
         self._pb = 0.0
         self._pr = [0.0, 0.0, 0.0]
-        self._fused = [0.0, 0.0, 0.0]   # текущая слитая ориентация
-        self._fused_init = False
         self._last_imu_t = None
+        # Три независимых фильтра Калмана: roll, pitch, yaw
+        self.kf = [_Kalman1D(q=1e-4, r=2e-2),    # roll
+                   _Kalman1D(q=1e-4, r=2e-2),    # pitch
+                   _Kalman1D(q=1e-4, r=3e-2)]    # yaw (одометрия) + магнитометр
 
-        self.node.create_subscription(Odometry, '/model/submarine/odometry', self._odom, 10)
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT, history=HistoryPolicy.KEEP_LAST)
+        self.node.create_subscription(Odometry, '/model/submarine/odometry', self._odom, 10)
         self.node.create_subscription(Float32, '/model/submarine/pressure', self._press, qos)
         self.node.create_subscription(Imu, '/model/submarine/imu', self._imu, qos)
+        self.node.create_subscription(MagneticField, '/model/submarine/magnetometer', self._mag, qos)
+        self.node.create_subscription(LaserScan, '/model/submarine/altimeter', self._alt, qos)
+        self.node.create_subscription(LaserScan, '/model/submarine/sonar', self._sonar, qos)
 
+    # ---------- сенсоры ----------
     def _press(self, msg):
         self.state.baro_z = (Phys.P_Z0 - msg.data) / Phys.RHO_G
 
     def _imu(self, msg):
-        """IMU: гироскоп (угл. скорости) + интегрирование в комплем. фильтре."""
+        """IMU: гироскоп → шаг ПРОГНОЗА фильтра Калмана."""
         s = self.state
         s.imu_ok = True
-        # Угловые скорости (рад/с): p=roll_rate, q=pitch_rate, r=yaw_rate
         s.gyro[0] = msg.angular_velocity.x
         s.gyro[1] = msg.angular_velocity.y
         s.gyro[2] = msg.angular_velocity.z
-        # Абсолютная ориентация из IMU (для отдельного вывода)
         s.rpy_imu = _quat_to_rpy(msg.orientation)
 
-        # Время для интегрирования гироскопа
         t = self.node.get_clock().now().nanoseconds / 1e9
         if self._last_imu_t is None:
             self._last_imu_t = t
@@ -77,20 +104,30 @@ class SensorFusion:
         self._last_imu_t = t
         if dt <= 0 or dt > 0.5:
             return
-
-        if not self._fused_init:
-            # инициализируемся опорой на одометрию (если есть) или IMU
-            self._fused = list(s.rpy_odo) if any(s.rpy_odo) else list(s.rpy_imu)
-            self._fused_init = True
-
-        a = self.ALPHA
         for i in range(3):
-            # high-pass: интеграл гироскопа; low-pass: опорный угол одометрии
-            pred = self._fused[i] + s.gyro[i] * dt
-            ref = s.rpy_odo[i]
-            # корректный учёт перехода через ±pi
-            err = _wrap(ref - pred)
-            self._fused[i] = _wrap(pred + (1.0 - a) * err)
+            self.kf[i].predict(s.gyro[i], dt)
+
+    def _mag(self, msg):
+        """Магнитометр → абсолютный курс (yaw), КОРРЕКЦИЯ фильтра."""
+        s = self.state
+        mx, my = msg.magnetic_field.x, msg.magnetic_field.y
+        s.mag_heading = math.atan2(-my, mx)   # курс из горизонтальных компонент
+        s.mag_ok = True
+        # магнитометру доверяем умеренно (R больше, чем у одометрии)
+        self.kf[2].update(s.mag_heading, R=8e-2)
+
+    def _alt(self, msg):
+        """Альтиметр (луч вниз) → высота над дном."""
+        s = self.state
+        rng = [r for r in msg.ranges if math.isfinite(r) and r > 0.0]
+        s.alt_floor = min(rng) if rng else -1.0
+
+    def _sonar(self, msg):
+        """Сонар (веер вперёд) → дистанция до ближайшего препятствия."""
+        s = self.state
+        rng = [r for r in msg.ranges if math.isfinite(r) and r > 0.0]
+        s.sonar_fwd = min(rng) if rng else -1.0
+        s.sonar_ok = True
 
     def _odom(self, msg):
         s = self.state
@@ -99,17 +136,17 @@ class SensorFusion:
         s.pos[2] = self.state.baro_z
         s.vel = msg.twist.twist.linear.x
         s.vel_z = msg.twist.twist.linear.z
-        # Ориентация только по одометрии
         s.rpy_odo = _quat_to_rpy(msg.pose.pose.orientation)
-        if not self._fused_init and not s.imu_ok:
-            # без IMU слитая = одометрия
-            self._fused = list(s.rpy_odo)
+        # КОРРЕКЦИЯ фильтра Калмана абсолютными углами одометрии
+        for i in range(3):
+            self.kf[i].update(s.rpy_odo[i])
 
+    # ---------- основной апдейт ----------
     def update(self, target: List[float], dt: float):
         s = self.state
-        # --- выбор итоговой ориентации: слияние, если есть IMU; иначе одометрия ---
-        if s.imu_ok and self._fused_init:
-            s.rpy = list(self._fused)
+        # Итоговая ориентация: оценка фильтра Калмана (если запущен), иначе одометрия
+        if self.kf[0].init:
+            s.rpy = [self.kf[0].x, self.kf[1].x, self.kf[2].x]
         else:
             s.rpy = list(s.rpy_odo)
 
@@ -124,7 +161,7 @@ class SensorFusion:
         s.dz_dt = 0.6 * s.dz_dt + 0.4 * raw_dz
         self._pb = s.pos[2]
         s.yaw_err = math.atan2(math.sin(s.bearing - s.rpy[2]), math.cos(s.bearing - s.rpy[2]))
-        # Угловые скорости: при наличии IMU берём гироскоп (чище), иначе численную производную
+        # Угловые скорости: с IMU — гироскоп (чисто), иначе численная производная
         if s.imu_ok:
             s.roll_d = s.gyro[0]
             s.pitch_d = s.gyro[1]

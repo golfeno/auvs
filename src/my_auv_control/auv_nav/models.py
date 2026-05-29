@@ -25,6 +25,11 @@ class VehicleState:
     rpy_odo: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])   # ориентация только по одометрии
     gyro: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])      # угловые скорости IMU (p,q,r), рад/с
     imu_ok: bool = False                                                     # приходят ли данные IMU
+    mag_heading: float = 0.0   # курс по магнитометру (рад)
+    mag_ok: bool = False
+    alt_floor: float = -1.0    # высота над дном, м (-1 = нет данных)
+    sonar_fwd: float = -1.0    # дистанция до препятствия впереди, м (-1 = чисто)
+    sonar_ok: bool = False
     baro_z: float = 0.0
     dz_dt: float = 0.0
     dist_2d: float = 1000.0

@@ -33,6 +33,32 @@
         <always_on>1</always_on><update_rate>50</update_rate>
         <topic>/sub_press</topic>
       </sensor>
+      <sensor name="mag_sensor" type="magnetometer">
+        <always_on>1</always_on><update_rate>50</update_rate>
+        <topic>/model/submarine_nb/magnetometer</topic>
+      </sensor>
+      <sensor name="altimeter_sensor" type="gpu_lidar">
+        <pose>0 0 -0.17 0 1.5707963 0</pose>
+        <always_on>1</always_on><update_rate>10</update_rate>
+        <topic>/model/submarine_nb/altimeter</topic>
+        <lidar>
+          <scan><horizontal><samples>1</samples><resolution>1</resolution>
+            <min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+          <range><min>0.3</min><max>100.0</max><resolution>0.01</resolution></range>
+        </lidar>
+      </sensor>
+      <sensor name="sonar_sensor" type="gpu_lidar">
+        <pose>0.75 0 0 0 0 0</pose>
+        <always_on>1</always_on><update_rate>10</update_rate>
+        <topic>/model/submarine_nb/sonar</topic>
+        <lidar>
+          <scan><horizontal><samples>15</samples><resolution>1</resolution>
+            <min_angle>-0.26</min_angle><max_angle>0.26</max_angle></horizontal>
+            <vertical><samples>1</samples><resolution>1</resolution>
+            <min_angle>0</min_angle><max_angle>0</max_angle></vertical></scan>
+          <range><min>0.5</min><max>50.0</max><resolution>0.01</resolution></range>
+        </lidar>
+      </sensor>
     </link>
 
     <!-- ===== ЛЕВЫЙ ПРОПЕЛЛЕР ===== -->
