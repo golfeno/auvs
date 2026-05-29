@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Ballast Neutral Finder (v3) — поиск нейтральной плавучести по УСКОРЕНИЮ.
+"""Ballast Neutral Finder (v4) — поиск нейтрали по ТЕРМИНАЛЬНОЙ СКОРОСТИ.
 
-Почему ускорение, а не скорость:
-  Чистая вертикальная сила: F = плавучесть - вес - сопротивление(v).
-  При НЕЙТРАЛИ F=0 -> ускорение a = F/m = 0. А вот скорость на установившемся
-  режиме (терминальная) НЕ ноль даже близко к нейтрали + её искажает инерция.
-  Поэтому метрика нейтрали = ускорение a = dVz/dt (вторая производная глубины).
-    a > 0  -> всплывает (избыток плавучести)
-    a < 0  -> тонет (недостаток)
-    a ~ 0  -> НЕЙТРАЛЬ
+Почему терминальная скорость, а НЕ ускорение:
+  На установившемся режиме сопротивление воды уравновешивает силу плавучести,
+  поэтому УСКОРЕНИЕ становится ~0 при ЛЮБОЙ постоянной скорости — даже когда
+  аппарат уверенно всплывает/тонет. (Это давало ложную «нейтраль»: a~0, но
+  Vz=+0.18 м/с.) Истинная нейтраль = НУЛЕВАЯ установившаяся скорость:
+        Vz_терм -> 0  <=>  чистая сила -> 0  <=>  НЕЙТРАЛЬ.
+    Vz > 0  -> всплывает (избыток плавучести) -> уменьшить объём
+    Vz < 0  -> тонет (недостаток)            -> увеличить объём
 
-Алгоритм: плавный свип, шаг падает ПОСЛЕ перерегулирования (овершута).
-  Граница объёма (0 или 1) ИЗМЕРЯЕТСЯ; «недостижимо» объявляется только если
-  НА границе знак всё ещё неправильный.
+Ключ: ДОЛГОЕ время успокоения (settle), чтобы аппарат реально вышел на
+терминальную скорость и измерение не зависело от предыдущего шага. Ускорение
+печатается для контроля (должно быть ~0 на терминале).
 
-Vz и a считаются по БАРОМЕТРУ (глубина -> dVz/dt). НЕ управляйте аппаратом!
+Vz и a считаются по БАРОМЕТРУ. НЕ управляйте аппаратом!
 """
 import sys
 import rclpy
@@ -32,16 +32,18 @@ class BallastNeutralFinder(Node):
     def __init__(self):
         super().__init__('ballast_neutral_finder')
 
-        self.declare_parameter('settle_time', 4.0)   # успокоение/наполнение пузыря
-        self.declare_parameter('measure_time', 4.0)  # окно измерения ускорения
-        self.declare_parameter('acc_tol', 0.005)     # м/с² — порог нейтрали по УСКОРЕНИЮ
+        self.declare_parameter('settle_time', 20.0)  # ДОЛГО: выход на терминальную скорость
+        self.declare_parameter('measure_time', 6.0)  # окно усреднения терминальной скорости
+        self.declare_parameter('vz_tol', 0.01)       # м/с — порог нейтрали по СКОРОСТИ
+        self.declare_parameter('acc_max', 0.01)      # м/с² — требуем, чтобы вышли на терминал (a мало)
         self.declare_parameter('step0', 0.25)
-        self.declare_parameter('step_min', 0.002)
+        self.declare_parameter('step_min', 0.004)
         self.declare_parameter('start_vol', 0.5)
         self.declare_parameter('max_iter', 40)
         self.settle_time  = self.get_parameter('settle_time').value
         self.measure_time = self.get_parameter('measure_time').value
-        self.acc_tol      = self.get_parameter('acc_tol').value
+        self.vz_tol       = self.get_parameter('vz_tol').value
+        self.acc_max      = self.get_parameter('acc_max').value
         self.step         = self.get_parameter('step0').value
         self.step_min     = self.get_parameter('step_min').value
         self.vol          = self.get_parameter('start_vol').value
@@ -77,10 +79,10 @@ class BallastNeutralFinder(Node):
         self.timer = self.create_timer(0.1, self._loop)
 
         sys.stdout.write("\n" + "=" * 64 + "\n")
-        sys.stdout.write("  ПОИСК НЕЙТРАЛИ ПО УСКОРЕНИЮ (плавный свип, шаг падает на овершутах)\n")
+        sys.stdout.write("  ПОИСК НЕЙТРАЛИ ПО ТЕРМИНАЛЬНОЙ СКОРОСТИ (плавный свип)\n")
         sys.stdout.write(f"  step0={self.step} settle={self.settle_time}s "
-                         f"measure={self.measure_time}s acc_tol={self.acc_tol} м/с²\n")
-        sys.stdout.write("  Метрика = ускорение a (a~0 => нейтраль). НЕ управляйте аппаратом!\n")
+                         f"measure={self.measure_time}s vz_tol={self.vz_tol} м/с\n")
+        sys.stdout.write("  Метрика = установившаяся Vz (Vz~0 => нейтраль). НЕ управляйте аппаратом!\n")
         sys.stdout.write("=" * 64 + "\n\n")
         sys.stdout.flush()
 
@@ -137,17 +139,22 @@ class BallastNeutralFinder(Node):
             return
 
     def _evaluate(self, a, vz):
-        sign = 1 if a > self.acc_tol else -1 if a < -self.acc_tol else 0
+        # Метрика — установившаяся (терминальная) СКОРОСТЬ Vz.
+        terminal = abs(a) < self.acc_max     # вышли ли на терминал (ускорение мало)
+        sign = 1 if vz > self.vz_tol else -1 if vz < -self.vz_tol else 0
         d = "ВСПЛЫВАЕТ" if sign > 0 else "ТОНЕТ" if sign < 0 else "НЕЙТРАЛЬ"
+        warn = "" if terminal else "  [не вышел на терминал, a велико!]"
         sys.stdout.write(f"\r\033[K[итер {self.iter}] vol={self.vol:.4f} step={self.step:.4f}  "
-                         f"a_ср={a:+.4f} м/с²  Vz_ср={vz:+.3f}  -> {d}\n")
+                         f"Vz_ср={vz:+.4f} м/с  a_ср={a:+.4f}  -> {d}{warn}\n")
         sys.stdout.flush()
 
-        if self.best is None or abs(a) < abs(self.best[1]):
+        # лучший = минимум |Vz| (только среди вышедших на терминал)
+        key = abs(vz)
+        if self.best is None or key < abs(self.best[2]):
             self.best = (self.vol, a, vz)
 
-        if sign == 0:
-            self._finish("ускорение в допуске (нейтраль)"); return
+        if sign == 0 and terminal:
+            self._finish("терминальная скорость в допуске (нейтраль)"); return
 
         # на границе и знак неправильный -> действительно недостижимо
         if (self.vol >= 0.999 and sign < 0) or (self.vol <= 0.001 and sign > 0):
