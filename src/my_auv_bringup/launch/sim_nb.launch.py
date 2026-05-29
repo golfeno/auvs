@@ -33,6 +33,7 @@ def generate_launch_description():
         package='ros_gz_bridge', executable='parameter_bridge',
         arguments=[
             f'/model/{M}/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry',
+            f'/model/{M}/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
             f'/model/{M}/joint/left_propeller_joint/cmd_force@std_msgs/msg/Float64@gz.msgs.Double',
             f'/model/{M}/joint/right_propeller_joint/cmd_force@std_msgs/msg/Float64@gz.msgs.Double',
             f'/model/{M}/joint/vertical_rudder/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',

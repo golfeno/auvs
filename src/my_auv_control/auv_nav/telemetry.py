@@ -1,4 +1,4 @@
-"""Telemetry (v51.0) — single updating line."""
+"""Telemetry (v52.0) — строка состояния + источники ориентации (IMU/Odo/Fused)."""
 import sys, math
 from rclpy.node import Node
 from geometry_msgs.msg import Point
@@ -36,9 +36,12 @@ class Telemetry:
         self._pv = s.vel; self._pz = s.dz_dt
 
         ru = PHASE_TR.get(phase, str(phase))
-        rd = math.degrees(s.rpy[0])
-        pd = math.degrees(s.rpy[1])
-        yd = math.degrees(s.rpy[2])
+        # СЛИТАЯ оценка (используется регуляторами)
+        rd = math.degrees(s.rpy[0]);  pd = math.degrees(s.rpy[1]);  yd = math.degrees(s.rpy[2])
+        # отдельные источники
+        ri, pi_, yi = (math.degrees(a) for a in s.rpy_imu)
+        ro, po, yo = (math.degrees(a) for a in s.rpy_odo)
+        src = "IMU+ODO" if s.imu_ok else "ODO"
 
         line = (
             f"\r\033[K"
@@ -46,13 +49,24 @@ class Telemetry:
             f"X:{s.pos[0]:+6.1f} Y:{s.pos[1]:+6.1f} Z:{s.pos[2]:+5.2f} "
             f"V:{s.vel:+.2f} Vz:{s.dz_dt:+.2f} "
             f"D:{s.dist_2d:4.1f}m dZ:{s.z_err:+.2f} "
-            f"R:{rd:+.0f}°P:{pd:+.0f}°Y:{yd:+.0f}°"
+            f"RPY[{src}]:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}°"
         )
 
         if cmd and hasattr(cmd, 'ballast_volume') and cmd.ballast_volume != 0.5:
             line += f" B:{cmd.ballast_volume:.0%}"
 
         sys.stdout.write(line)
+
+        # Вторая строка с разбивкой по источникам (реже, чтобы не засорять)
+        if t - getattr(self, '_t_src', 0.0) >= 1.0:
+            self._t_src = t
+            sys.stdout.write(
+                f"\n    └─ ориентация R/P/Y°  "
+                f"IMU:{ri:+.0f}/{pi_:+.0f}/{yi:+.0f}  "
+                f"ODO:{ro:+.0f}/{po:+.0f}/{yo:+.0f}  "
+                f"FUSED:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}  "
+                f"gyro(p/q/r):{s.gyro[0]:+.2f}/{s.gyro[1]:+.2f}/{s.gyro[2]:+.2f}\n"
+            )
         sys.stdout.flush()
 
     def log_wp(self, wi):

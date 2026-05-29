@@ -20,7 +20,11 @@ class VehicleState:
     pos: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     vel: float = 0.0
     vel_z: float = 0.0
-    rpy: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
+    rpy: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])       # СЛИТАЯ оценка (используется регуляторами)
+    rpy_imu: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])   # ориентация только по IMU
+    rpy_odo: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])   # ориентация только по одометрии
+    gyro: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])      # угловые скорости IMU (p,q,r), рад/с
+    imu_ok: bool = False                                                     # приходят ли данные IMU
     baro_z: float = 0.0
     dz_dt: float = 0.0
     dist_2d: float = 1000.0
