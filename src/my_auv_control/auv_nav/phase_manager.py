@@ -1,10 +1,12 @@
-"""Phase Manager (v51.6) — NAV to XY first, then fix Z.
+"""Phase Manager (v52.0) — две альтернативные «фазы 2».
 
-NAV: cruise to waypoint XY (Z is secondary, approximate only)
-Z_STAB: at XY position → correct Z
-  RUDDER: slow forward + rudder depth
-  BALLAST: full stop + ballast depth
-HOVER: both XY and Z OK
+NAV: круиз к точке по XY (Z вторична, грубо)
+ФАЗА 2 (одна из двух, по ситуации):
+  • Z_STAB     — XY достигнут раньше Z → встаём/тормозим и доводим Z
+                   RUDDER: малый ход вперёд + рули; BALLAST: стоп + балласты
+  • Z_CORRIDOR — Z достигнут раньше XY → продолжаем идти к XY, удерживая
+                   Z в коридоре |z_err| <= 0.5 м (альт. версия фазы 2)
+HOVER: и XY, и Z в норме
 """
 from typing import List, Tuple, Dict
 from .models import VehicleState, Lim as L, MotorMode, DepthMode, Phys
@@ -46,20 +48,37 @@ class PhaseManager:
         return max(-0.3, min(0.3, c / d))
 
     def evaluate(self, s: VehicleState, t: float) -> str:
-        z_ok = abs(s.z_err) < 0.5
-        xy_ok = s.dist_2d < L.suc_r
+        z_ok = abs(s.z_err) < L.suc_r          # 0.5 — финальная норма по Z
+        xy_ok = s.dist_2d < L.suc_r            # 0.5 — норма по XY
+        z_in_corr = abs(s.z_err) <= L.z_corr_in  # 0.4 — вход в коридор по Z
 
         # Оба ОК → HOVER
         if z_ok and xy_ok:
             self.state = 'HOVER_STAB'
             return self.state
 
-        # NAV → Z_STAB: только когда XY ДОСТИГНУТ
+        # NAV → фаза 2 (две альтернативы):
         if self.state == 'NAV' and xy_ok and not z_ok:
+            # XY достигнут раньше Z → классический Z_STAB
             self.state = 'Z_STAB'
             self.need_pid_reset = True
+        elif self.state == 'NAV' and z_in_corr and not xy_ok:
+            # Z достигнут раньше XY → коридор по Z (альт. фаза 2)
+            self.state = 'Z_CORRIDOR'
+            self.need_pid_reset = True
 
-        # Z_STAB → NAV: если Z попали но XY уехал (дрифт)
+        # Переходы из коридора
+        if self.state == 'Z_CORRIDOR':
+            if xy_ok and not z_ok:
+                # доехали по XY, но Z вне нормы → доводим Z на месте
+                self.state = 'Z_STAB'
+                self.need_pid_reset = True
+            elif abs(s.z_err) > L.z_corr:
+                # вылетели из коридора по Z → назад в NAV (восстановить Z)
+                self.state = 'NAV'
+                self.need_pid_reset = True
+
+        # Z_STAB → NAV: если Z попали, но XY уехал (дрифт)
         if self.state == 'Z_STAB' and not xy_ok:
             self.state = 'NAV'
             self.need_pid_reset = True
@@ -76,6 +95,18 @@ class PhaseManager:
             sc = min(1.0, dist / 15.0)
             t = L.cruise * sc
             if ra > 0.15: t *= 0.55
+            p['bs'] = t
+            p['yd'] = 5.0 * s.yaw_err
+
+        elif self.state == 'Z_CORRIDOR':
+            # Альт. фаза 2: продолжаем идти к XY, удерживая Z в коридоре.
+            # Тяга как в NAV, но мягче у границы коридора (даём глубине отработать).
+            sc = min(1.0, dist / 15.0)
+            t = L.cruise * sc
+            if ra > 0.15: t *= 0.55
+            # если Z близко к краю коридора — притормаживаем, чтобы не выскочить
+            z_margin = max(0.0, min(1.0, (L.z_corr - abs(s.z_err)) / max(1e-3, L.z_corr)))
+            t *= (0.5 + 0.5 * z_margin)
             p['bs'] = t
             p['yd'] = 5.0 * s.yaw_err
 

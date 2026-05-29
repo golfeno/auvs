@@ -83,7 +83,7 @@ class AUVAutopilotNode(Node):
             cmd.ballast_volume = self.depth_b.compute(s, ph, Phys.DT)
 
         # Thrust with slew limiting
-        slew_map = {'NAV': 6.0, 'Z_STAB': 5.0, 'HOVER_STAB': 0.0, 'FINISH': 0.0}
+        slew_map = {'NAV': 6.0, 'Z_CORRIDOR': 6.0, 'Z_STAB': 5.0, 'HOVER_STAB': 0.0, 'FINISH': 0.0}
         sl = slew_map.get(ph, 6.0)
         d = sl * Phys.DT
         tgt = tp.get('bs', 0.0)

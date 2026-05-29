@@ -50,7 +50,7 @@ class ActuatorCommands:
 
 PHASE_TR = {
     'NAV': 'Круиз', 'BRAKE': 'Торможение',
-    'Z_STAB': 'Корр.высоты', 'XY_FINAL': 'Сближение',
+    'Z_STAB': 'Корр.высоты', 'Z_CORRIDOR': 'Коридор-Z', 'XY_FINAL': 'Сближение',
     'HOVER_STAB': 'Стабилизация', 'FINISH': 'Готово',
 }
 
@@ -58,8 +58,8 @@ PHASE_TR = {
 class Phys:
     P_Z0 = 101325.0
     RHO_G = 9810.0
-    DT = 0.05
-    MASS = 124.18  # total mass (body + ballasts)
+    DT = 0.02   # 50 Гц — совпадает с частотой одометрии (>=30 Гц)
+    MASS = 139.28  # total mass (body 122.7 + ballasts 16.58)
     MAX_BALLAST_VOL = 0.003
 
 
@@ -94,8 +94,10 @@ class PID:
 class Lim:
     rud_spd = 2.4
     cruise = -15.0
-    suc_r = 0.5    # success radius
+    suc_r = 0.5    # success radius (XY)
     alt_br = 1.7   # altitude breach threshold
+    z_corr = 0.5   # коридор по Z: держим |z_err| <= 0.5 м пока идём по XY
+    z_corr_in = 0.4  # вход в коридор (с запасом, чтобы не дёргалось у границы)
 
 
 class SR:
