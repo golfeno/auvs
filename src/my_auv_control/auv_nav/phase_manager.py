@@ -24,6 +24,7 @@ class PhaseManager:
         self.need_pid_reset = False
         self.drift_vx = 0.0
         self.drift_vy = 0.0
+        self._aligned = False   # фаза 3: наведён ли нос на точку (с гистерезисом)
 
     def init_wp(self, t, pos):
         raw = list(self.waypoints[self.wp_idx])
@@ -101,6 +102,7 @@ class PhaseManager:
 
         if self.state != st:
             self.need_pid_reset = True
+            self._aligned = False   # при смене фазы сбрасываем наведение
 
         return self.state
 
@@ -161,17 +163,28 @@ class PhaseManager:
                 p['yd'] = 0.0
 
         elif self.state == 'APPROACH':
-            # Фаза 3: стоп → разворот носом на точку (±align_tol) → газ по прямой.
+            # Фаза 3: стоп → разворот носом на точку → газ по прямой.
+            # Гистерезис наведения: «навёлся» при |ye|<align_tol (±10°),
+            # «сбился» только если ушли за align_tol_out (±20°) — без дребезга.
             ye = s.yaw_err
-            if abs(ye) > L.align_tol:
-                # НАВЕДЕНИЕ: ход вперёд = 0, моторы враздрай разворачивают на месте
+            if self._aligned:
+                if abs(ye) > L.align_tol_out:
+                    self._aligned = False
+            else:
+                if abs(ye) < L.align_tol:
+                    self._aligned = True
+
+            if not self._aligned:
+                # РАЗВОРОТ НА МЕСТЕ: ход=0, ПОЛНЫЙ дифференциал движков (враздрай).
+                # PD: P доворачивает быстро, D (по гироскопу yaw_d) гасит занос —
+                # без D был чистый P → перелёт курса → вечная осцилляция.
                 p['bs'] = 0.0
-                yd = L.turn_gain * ye
+                yd = L.turn_gain * ye - L.turn_damp * s.yaw_d
                 p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
             else:
                 # ГАЗ ПО ПРЯМОЙ: нос наведён, идём прямо с малой коррекцией курса
                 p['bs'] = -L.approach_thrust
-                yd = 3.0 * ye
+                yd = 3.0 * ye - 0.5 * s.yaw_d
                 ylim = L.yd_frac * L.approach_thrust
                 p['yd'] = max(-ylim, min(ylim, yd))
 
