@@ -70,7 +70,7 @@ class Phys:
     DT = 0.02   # 50 Гц — совпадает с частотой одометрии (>=30 Гц)
     MASS = 139.28  # total mass (body 122.7 + ballasts 16.58)
     MAX_BALLAST_VOL = 0.015
-    RUDDER_TRIM_VOL = 0.55   # режим рулей: держим ~нейтраль балласта
+    RUDDER_TRIM_VOL = 0.493   # режим рулей: держим баки на нейтрали (как bz_neutral)
 
 
 class PID:
