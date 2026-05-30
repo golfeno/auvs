@@ -68,14 +68,20 @@ class PhaseManager:
 
         st = self.state
 
+        # Коридор по Z (правка глубины НА ХОДУ) имеет смысл только для РУЛЕЙ —
+        # им нужен набегающий поток. Для БАЛЛАСТА поток не нужен, и менять глубину
+        # на ходу нельзя (он погружался бы, не дойдя до точки) -> входим в фазу Z
+        # СТРОГО над/под точкой XY (через Z_STAB, когда near).
+        corridor_ok = (self.dm == DepthMode.RUDDER)
+
         # ---- из NAV ----
         if st == 'NAV':
             if near and z_ok:
                 self.state = 'APPROACH'      # рядом и глубина готова → сближение
             elif near and not z_ok:
-                self.state = 'Z_STAB'        # 2b: подошли по XY, доводим Z
-            elif z_in_corr:
-                self.state = 'Z_CORRIDOR'    # 2a: Z поймали раньше XY
+                self.state = 'Z_STAB'        # 2b: подошли по XY, доводим Z (над/под точкой)
+            elif z_in_corr and corridor_ok:
+                self.state = 'Z_CORRIDOR'    # 2a: ТОЛЬКО рули — Z поймали раньше XY
 
         # ---- из Z_CORRIDOR (2a) ----
         elif st == 'Z_CORRIDOR':
@@ -125,11 +131,11 @@ class PhaseManager:
                 t = L.cruise * sc
                 if ra > 0.15: t *= 0.55
                 align = max(0.0, _m.cos(s.yaw_err))
-                t *= (0.25 + 0.75 * align)
+                t *= (0.1 + 0.9 * align * align)   # резче гасим ход при отклонении курса
                 if -t < L.cruise_min:
                     t = -L.cruise_min
                 p['bs'] = t
-                yd = 5.0 * s.yaw_err
+                yd = 6.0 * s.yaw_err               # жёстче правим курс
                 ylim = L.yd_frac * abs(t)
                 p['yd'] = max(-ylim, min(ylim, yd))
 
@@ -145,13 +151,13 @@ class PhaseManager:
                 t = L.cruise * sc
                 if ra > 0.15: t *= 0.55
                 align = max(0.0, _m.cos(s.yaw_err))
-                t *= (0.25 + 0.75 * align)
+                t *= (0.1 + 0.9 * align * align)
                 z_margin = max(0.0, min(1.0, (L.z_corr - abs(s.z_err)) / max(1e-3, L.z_corr)))
                 t *= (0.5 + 0.5 * z_margin)
                 if -t < L.cruise_min:
                     t = -L.cruise_min
                 p['bs'] = t
-                yd = 5.0 * s.yaw_err
+                yd = 6.0 * s.yaw_err
                 ylim = L.yd_frac * abs(t)
                 p['yd'] = max(-ylim, min(ylim, yd))
 
