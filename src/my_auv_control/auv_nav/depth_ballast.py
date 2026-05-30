@@ -48,7 +48,15 @@ class DepthBallastController:
         # PID (знак минус): z_err>0 (выше цели) → меньше плавучести → volume вниз
         adj = -(P.Kp_bz * s.z_err + P.Ki_bz * self._iz + Kd * s.dz_dt)
 
-        self._vol = max(0.0, min(1.0, P.bz_neutral + adj))
+        # ОГРАНИЧЕНИЕ АВТОРИТЕТА: |отклонение от нейтрали| <= bz_authority,
+        # иначе балласт даёт ±2 м/с² и аппарат 'взлетает'. Ограничиваем силу.
+        adj = max(-P.bz_authority, min(P.bz_authority, adj))
+        target = P.bz_neutral + adj
+
+        # SLEW: объём не может меняться быстрее насоса (bz_slew norm/с)
+        d = P.bz_slew * dt
+        self._vol += max(-d, min(d, target - self._vol))
+        self._vol = max(0.0, min(1.0, self._vol))
         return self._vol
 
     def get_pitch_trim(self, s: VehicleState, dt: float) -> float:
