@@ -12,14 +12,13 @@
   (ballast_1,2) и кормовыми (ballast_3,4), СОХРАНЯЯ суммарный объём:
         нос  = base + trim   (2 бака)
         корма= base - trim   (2 бака)   -> суммарный объём неизменен.
-  Метрика дифферента = вертикальная компонента продольной оси аппарата:
-        pitch_metric = 1 - 2*(qx^2 + qy^2)   (по одометрии)
-  При горизонтальном положении продольная ось горизонтальна -> метрика ~0.
-  Hill-climb по |pitch_metric| (минимизируем наклон), знак определяется сам.
+  Метрика дифферента = УГОЛ тангажа pitch (рад) из одометрии (asin(2(wy-zx))).
+  При горизонте pitch~0. Hill-climb минимизирует |pitch| -> trim к балансу.
+  (Если корма/нос уже сбалансированы, узел быстро сойдётся к trim=0.)
 
 Vz по барометру, ориентация по одометрии. НЕ управляйте аппаратом!
 """
-import sys
+import sys, math
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
@@ -48,7 +47,7 @@ class BallastCalib(Node):
         self.declare_parameter('start_vol', 0.5)
         self.declare_parameter('trim_step0', 0.1)
         self.declare_parameter('trim_step_min', 0.005)
-        self.declare_parameter('pitch_tol', 0.01)
+        self.declare_parameter('pitch_tol', 0.017)  # ~1° допуск по тангажу
         self.declare_parameter('max_iter', 40)
         self.settle_time  = self.get_parameter('settle_time').value
         self.measure_time = self.get_parameter('measure_time').value
@@ -122,8 +121,9 @@ class BallastCalib(Node):
 
     def _odom(self, msg):
         q = msg.pose.pose.orientation
-        # вертикальная компонента продольной оси (наклон по тангажу), ~0 при горизонте
-        self.pitch_metric = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
+        # УГОЛ тангажа (рад). При горизонте ~0; нос вверх/вниз -> +/-.
+        sinp = max(-1.0, min(1.0, 2.0 * (q.w * q.y - q.z * q.x)))
+        self.pitch_metric = math.asin(sinp)
 
     # ---------- управление баками ----------
     def _set_depth(self, norm):
@@ -174,7 +174,7 @@ class BallastCalib(Node):
                              f"{what} Vz={self.vz:+.3f} a={self.acc:+.4f}   ")
         else:
             sys.stdout.write(f"\r[Д{self.trim_iter}] trim={self.trim:+.4f} step={self.trim_step:.4f} "
-                             f"{what} наклон={self.pitch_metric:+.4f}   ")
+                             f"{what} тангаж={math.degrees(self.pitch_metric):+.2f}°   ")
         sys.stdout.flush()
 
     # ---------- СТАДИЯ 1: ГЛУБИНА ----------
@@ -232,9 +232,9 @@ class BallastCalib(Node):
 
     # ---------- СТАДИЯ 2: ДИФФЕРЕНТ ----------
     def _eval_trim(self, pm):
-        cost = abs(pm)
+        cost = abs(pm)   # pm — угол тангажа (рад)
         sys.stdout.write(f"\r\033[K[Д{self.trim_iter}] trim={self.trim:+.4f} step={self.trim_step:.4f}  "
-                         f"наклон={pm:+.4f}  |наклон|={cost:.4f}\n"); sys.stdout.flush()
+                         f"тангаж={math.degrees(pm):+.2f}°  |{math.degrees(cost):.2f}°|\n"); sys.stdout.flush()
 
         if self.best_trim is None or cost < self.best_trim[1]:
             self.best_trim = (self.trim, cost)
@@ -268,7 +268,7 @@ class BallastCalib(Node):
         sys.stdout.write(f"  Дифферент (trim):    {trim:+.4f}   [{reason}]\n")
         sys.stdout.write(f"  -> носовые баки (1,2):  {bow:.4f}  ({bow*MAX_BALLAST_VOL*1000:.2f} л)\n")
         sys.stdout.write(f"  -> кормовые баки(3,4):  {stern:.4f}  ({stern*MAX_BALLAST_VOL*1000:.2f} л)\n")
-        sys.stdout.write(f"  Остаточный наклон:   {cost:.4f}\n")
+        sys.stdout.write(f"  Остаточный тангаж:   {math.degrees(cost):.2f}°\n")
         sys.stdout.write("\n  Впиши в models.py:  bz_neutral = %.3f  (и trim для диффер.) \n" % self.base)
         sys.stdout.write("=" * 66 + "\n"); sys.stdout.flush()
         self._set_trim(self.base, trim)
