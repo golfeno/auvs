@@ -51,7 +51,7 @@
       </sensor>
       <!-- ===== СОНАР: эхолот ВПЕРЁД (препятствия) ===== -->
       <sensor name="sonar_sensor" type="gpu_lidar">
-        <pose>0.8 0 0 0 0 0</pose>
+        <pose>0.8 0 0 0 -1.5707963 0</pose>
         <always_on>1</always_on><update_rate>10</update_rate>
         <topic>/model/submarine/sonar</topic>
         <gz_frame_id>submarine/body/sonar_sensor</gz_frame_id>
