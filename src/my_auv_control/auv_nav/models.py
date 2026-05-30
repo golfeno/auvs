@@ -98,7 +98,7 @@ class PID:
     Ki_bz = 0.05
     Kd_bz = 10.0
     bz_ilim = 1.0
-    bz_neutral = 0.55   # движок нейтрален при 0.5; +чуть на статич.дисбаланс (узел уточнит)
+    bz_neutral = 0.493   # измерено узлом ballast_neutral (интерполяция корня Vz=0)
 
 
 class Lim:
