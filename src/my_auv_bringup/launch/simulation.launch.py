@@ -38,7 +38,8 @@ def generate_launch_description():
             '/model/submarine/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry',
             # TF: world -> submarine/body (динамическая поза аппарата) -> /tf
             '/model/submarine/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
-            # Позы звеньев и СЕНСОРОВ (PosePublisher) -> /tf и /tf_static
+            # Позы звеньев и СЕНСОРОВ (PosePublisher, static_publisher=false -> всё в /pose -> /tf,
+            # чтобы обойти QoS-несовместимость /tf_static у моста)
             '/model/submarine/pose@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
             '/model/submarine/pose_static@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
             '/model/submarine/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
