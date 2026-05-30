@@ -76,8 +76,7 @@ def generate_launch_description():
     )
     tf_alt = Node(
         package='tf2_ros', executable='static_transform_publisher', output='log',
-        arguments=['--x', '0.17', '--y', '0', '--z', '0',
-                   '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/altimeter_sensor']
+        arguments=['--x', '0.17', '--y', '0', '--z', '0', '--roll', '0', '--pitch', '1.5707963', '--yaw', '0', '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/altimeter_sensor']
     )
 
     # --- RViz2 (визуализация сонара/альтиметра/одометрии) ---
