@@ -14,7 +14,7 @@ from .models import VehicleState, PID as P, Phys
 
 class DepthBallastController:
     def __init__(self):
-        self._vol = 0.5      # normalized 0..1
+        self._vol = P.bz_neutral  # инициализация с нейтрали (0.493), иначе всплывает
         self._iz = 0.0
         self._pitch_iz = 0.0
 

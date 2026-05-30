@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""AUV Autopilot v53.0 — 4 фазы (NAV/Z/APPROACH/HOVER), IMU-ремап, полный диф в развороте."""
+"""AUV Autopilot v101 — мягкий обход, плавный балласт, фильтр входа."""
 import sys, os
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
 from visualization_msgs.msg import Marker, MarkerArray
-from .models import MotorMode, DepthMode, ActuatorCommands, Phys
+from .models import MotorMode, DepthMode, ActuatorCommands, Phys, PID
 from .sensor_fusion import SensorFusion
 from .phase_manager import PhaseManager
 from .guidance import LOSGuidance
@@ -31,7 +31,6 @@ class AUVAutopilotNode(Node):
         self.roll = RollController()
         self.obstacle = ObstacleAvoidance()
         self.tl = Telemetry(self)
-        # подпись режима глубины для одной строки телеметрии
         _dl = {DepthMode.RUDDER: 'Глубина:РУЛИ',
                DepthMode.BALLAST: 'Глубина:БАКИ',
                DepthMode.BOTH: 'Глубина:БАКИ+РУЛИ'}
@@ -55,18 +54,13 @@ class AUVAutopilotNode(Node):
         self.pub_markers = self.create_publisher(MarkerArray, '/auv/waypoints', 10)
         self.marker_timer = self.create_timer(0.5, self._pub_markers)
 
-        # ДЕМО-режим: расписание режима глубины по сегментам маршрута.
-        # depth_schedule[i] = DepthMode для участка к точке (i+1). Если None —
-        # используем общий self.dm (обычный режим). Ставится извне (demo-файлом).
         self.depth_schedule = None
-
         self._b = 0.0
         self.timer = self.create_timer(Phys.DT, self._loop)
         t0 = self.get_clock().now().nanoseconds / 1e9
         self.pm.init_wp(t0, [0.0, 0.0, 0.0])
 
     def _apply_segment_depth(self):
-        """ДЕМО: переключить режим глубины по текущему сегменту маршрута."""
         if not self.depth_schedule:
             return
         i = self.pm.wp_idx
@@ -80,7 +74,6 @@ class AUVAutopilotNode(Node):
                 self.tl.depth_label = _dl.get(dm, '') + ' (демо)'
 
     def _loop(self):
-        # v53.0
         if self.pm.state == 'FINISH':
             return
 
@@ -93,17 +86,31 @@ class AUVAutopilotNode(Node):
         self.pm.update_drift(self.sf.state, t, Phys.DT)
 
         s = self.sf.state
-        prev_ph = self.pm.state
-        ph = self.pm.evaluate(s, t)
-        if ph != prev_ph:
-            import sys as _sys
-            _sys.stdout.write(f"\n>>> ФАЗА: {prev_ph} -> {ph}  (d2d={s.dist_2d:.2f} z_err={s.z_err:+.2f} yaw_err={s.yaw_err:+.2f})\n")
-            _sys.stdout.flush()
 
-        # ── НАВЕДЕНИЕ НА ТОЧКУ (pure pursuit) ──
-        # LOS-наведение по прямой ОТКАЧЕНО: наведение прямо на точку (bearing).
+        # ─── Obstacle ───
+        av = None
+        s.avoid_mode = 'NORMAL'
+        if self.pm.state not in ('HOVER_STAB', 'FINISH'):
+            av = self.obstacle.compute(s.sonar_ranges, s.dist_2d, Phys.DT)
+            s.avoid_mode = av.mode
+
+        # ─── Фаза ───
+        prev_ph = self.pm.state
+        ph = self.pm.evaluate(s, t, av, Phys.DT)
+        if ph != prev_ph:
+            sys.stdout.write(f"\n>>> ФАЗА: {prev_ph} -> {ph}  "
+                             f"(closest={av.closest if av else 0:.1f}м "
+                             f"yaw_off={av.yaw_offset if av else 0:+.2f})\n")
+            sys.stdout.flush()
+
+        # LOS
         self.los.set_segment(self.pm.seg_start, self.pm.target)
         s.cross_track = 0.0
+
+        # ─── av.yaw_offset к s.yaw_err только НЕ в AVOID ───
+        if av is not None and ph != 'AVOID':
+            s.yaw_err += av.yaw_offset
+            s.z_err += av.z_offset
 
         # Reset on phase change
         if self.pm.need_pid_reset:
@@ -115,43 +122,38 @@ class AUVAutopilotNode(Node):
             self._b = 0.0
             self.pm.need_pid_reset = False
 
-        # ── Обход препятствий (v91: простой gap-follower, БЕЗ FSM/override) ──
-        # Поправка курса/глубины СНАЧАЛА (до params), чтобы дифференциал движков
-        # в params() реагировал на манёвр обхода. yaw_offset просто СКЛАДЫВАЕТСЯ
-        # с наведением на цель — закон один, без «перехвата».
-        av = None
-        s.avoid_mode = 'NORMAL'
-        if ph not in ('HOVER_STAB', 'FINISH'):
-            av = self.obstacle.compute(s.sonar_ranges, s.dist_2d, Phys.DT)
-            s.yaw_err += av.yaw_offset
-            s.z_err += av.z_offset
-            s.avoid_mode = av.mode
-
-        # params ПОСЛЕ обхода — bs/yd реагируют на манёвр обхода.
-        tp = self.pm.params(s)
+        # params
+        tp = self.pm.params(s, av)
 
         cmd = ActuatorCommands()
 
-        # Heading — always (нижний вертикальный руль)
-        cmd.rv = self.heading.compute(s, ph, Phys.DT, False)
-        # Roll — верхний вертикальный руль (отдельный канал, НЕ инвертируется)
-        cmd.rvt = self.roll.vertical_top(s, ph, Phys.DT)
+        # ─── РУЛИ ───
+        if ph == 'AVOID' and av is not None:
+            # Вертикальные рули — на поворот
+            yaw_rud = max(-PID.rud_max, min(PID.rud_max, av.yaw_offset * PID.Kp_yaw))
+            cmd.rv = yaw_rud
+            cmd.rvt = max(-PID.roll_v_lim, min(PID.roll_v_lim, av.yaw_offset * 5.0))
+            # Горизонтальные — нейтраль (иначе depth_rudder тянет вверх)
+            cmd.hl = 0.0; cmd.hr = 0.0; cmd.hfl = 0.0; cmd.hfr = 0.0
+            # Балласт — плавный (как всегда)
+            if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
+                cmd.ballast_volume = self.depth_b.compute(s, ph, Phys.DT)
+        else:
+            cmd.rv = self.heading.compute(s, ph, Phys.DT, backoff=False)
+            cmd.rvt = self.roll.vertical_top(s, ph, Phys.DT)
+            if self.dm in (DepthMode.RUDDER, DepthMode.BOTH):
+                cmd.hl, cmd.hr, cmd.hfl, cmd.hfr = self.depth_r.compute(s, ph, Phys.DT)
+            if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
+                cmd.ballast_volume = self.depth_b.compute(s, ph, Phys.DT)
 
-        # Depth + roll через все 4 горизонтальных руля
-        if self.dm in (DepthMode.RUDDER, DepthMode.BOTH):
-            cmd.hl, cmd.hr, cmd.hfl, cmd.hfr = self.depth_r.compute(s, ph, Phys.DT)
-        if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
-            cmd.ballast_volume = self.depth_b.compute(s, ph, Phys.DT)
-
-        # Thrust with slew limiting
-        slew_map = {'NAV': 6.0, 'Z_CORRIDOR': 6.0, 'Z_STAB': 5.0, 'APPROACH': 8.0, 'HOVER_STAB': 0.0, 'FINISH': 0.0}
+        # ─── Тяга ───
+        slew_map = {'NAV': 6.0, 'Z_CORRIDOR': 6.0, 'Z_STAB': 5.0,
+                    'APPROACH': 8.0, 'AVOID': 3.0, 'HOVER_STAB': 0.0, 'FINISH': 0.0}
         sl = slew_map.get(ph, 6.0)
         d = sl * Phys.DT
         tgt = tp.get('bs', 0.0)
 
-        # Обход: плавно снижаем ход у препятствия (speed_factor НИКОГДА не 0 ->
-        # аппарат не встаёт и не крутится на месте, сонар смотрит вперёд).
-        if av and av.obstacle_near:
+        if av is not None and av.obstacle_near:
             tgt *= av.speed_factor
 
         self._b = self._b + max(-d, min(d, tgt - self._b))
@@ -174,20 +176,20 @@ class AUVAutopilotNode(Node):
             self.tl.log_wp(self.pm.wp_idx + 1)
             self.pm.wp_idx += 1
             if self.pm.wp_idx < self.tw:
-                self.heading.reset(); self.depth_r.reset(); self.depth_b.reset(); self.roll.reset(); self.obstacle.reset()
+                self.heading.reset(); self.depth_r.reset(); self.depth_b.reset()
+                self.roll.reset(); self.obstacle.reset()
                 self._b = 0.0
                 self.pm.init_wp(t, s.pos)
             else:
                 self.pm.state = 'FINISH'
                 self._pub(ActuatorCommands())
-                sys.stdout.write(f"\n[{VERSION} #{BUILD_NUMBER}] ✓ Миссия завершена! " + str(self.tw) + " точек.\n")
+                sys.stdout.write(f"\n[{VERSION} #{BUILD_NUMBER}] ✓ Миссия завершена!\n")
                 sys.stdout.flush()
                 raise SystemExit
         else:
             self.tl.log(s, ph, self.pm.wp_idx, t, self.tw, cmd)
 
     def _pub_markers(self):
-        """Целевые точки в RViz: все waypoints (сферы) + подсветка текущей."""
         arr = MarkerArray()
         for i, w in enumerate(self.wps):
             m = Marker()
@@ -198,9 +200,8 @@ class AUVAutopilotNode(Node):
             m.pose.position.x = float(w[0]); m.pose.position.y = float(w[1]); m.pose.position.z = float(w[2])
             m.pose.orientation.w = 1.0
             active = (i == self.pm.wp_idx)
-            s = 1.2 if active else 0.7
-            m.scale.x = s; m.scale.y = s; m.scale.z = s
-            # текущая — зелёная, пройденные — серые, будущие — оранжевые
+            sc = 1.2 if active else 0.7
+            m.scale.x = sc; m.scale.y = sc; m.scale.z = sc
             if active:
                 m.color.r, m.color.g, m.color.b = 0.1, 0.9, 0.2
             elif i < self.pm.wp_idx:
@@ -209,12 +210,12 @@ class AUVAutopilotNode(Node):
                 m.color.r, m.color.g, m.color.b = 0.95, 0.55, 0.1
             m.color.a = 0.8
             arr.markers.append(m)
-            # подпись с номером точки
             txt = Marker()
             txt.header.frame_id = 'world'; txt.header.stamp = m.header.stamp
             txt.ns = 'wp_labels'; txt.id = 1000 + i
             txt.type = Marker.TEXT_VIEW_FACING; txt.action = Marker.ADD
-            txt.pose.position.x = float(w[0]); txt.pose.position.y = float(w[1]); txt.pose.position.z = float(w[2]) + 1.0
+            txt.pose.position.x = float(w[0]); txt.pose.position.y = float(w[1])
+            txt.pose.position.z = float(w[2]) + 1.0
             txt.pose.orientation.w = 1.0
             txt.scale.z = 0.8
             txt.color.r = txt.color.g = txt.color.b = 1.0; txt.color.a = 0.9
@@ -226,25 +227,18 @@ class AUVAutopilotNode(Node):
         self.pub_lt.publish(Float64(data=cmd.lt))
         self.pub_rt.publish(Float64(data=cmd.rt))
         self.pub_vert.publish(Float64(data=cmd.rv))
-        # Верхний вертикальный руль — стабилизация крена (не инвертируется)
         self.pub_vert_top.publish(Float64(data=cmd.rvt))
-        # Кормовые горизонтальные рули
         self.pub_hl.publish(Float64(data=cmd.hl))
         self.pub_hr.publish(Float64(data=cmd.hr))
-        # Носовые горизонтальные рули — рассчитаны контроллером
-        # (канал глубины зеркальный, канал крена сонаправленный)
         self.pub_hfl.publish(Float64(data=cmd.hfl))
         self.pub_hfr.publish(Float64(data=cmd.hfr))
-        # Баки: нос (1,2) = base+trim, корма (3,4) = base-trim (статич. дифферент из калибровки)
         if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
             base = cmd.ballast_volume
         else:
-            # РЕЖИМ РУЛЕЙ: балласт держит нейтраль (иначе аппарат сам всплывал/тонул)
             base = Phys.RUDDER_TRIM_VOL
         tr = Phys.BALLAST_TRIM
         bow = max(0.0, min(1.0, base + tr)) * Phys.MAX_BALLAST_VOL
         stern = max(0.0, min(1.0, base - tr)) * Phys.MAX_BALLAST_VOL
-        # pub_b[0],[1] = ballast_1,2 (нос);  pub_b[2],[3] = ballast_3,4 (корма)
         self.pub_b[0].publish(Float64(data=bow))
         self.pub_b[1].publish(Float64(data=bow))
         self.pub_b[2].publish(Float64(data=stern))
@@ -279,7 +273,7 @@ def _ask(p, v, d=None):
 
 def main():
     print("=" * 50)
-    print(f"  AUV Autopilot {VERSION} | СБОРКА #{BUILD_NUMBER} | 4 фазы, IMU/Kalman, балласт, обход препятствий")
+    print(f"  AUV Autopilot {VERSION} | СБОРКА #{BUILD_NUMBER} | v101")
     print("=" * 50)
 
     default_file = os.path.expanduser("~/auv/waypoints.txt")

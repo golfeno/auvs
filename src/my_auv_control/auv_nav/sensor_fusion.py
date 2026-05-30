@@ -175,6 +175,7 @@ class SensorFusion:
         s.dz_dt = 0.6 * s.dz_dt + 0.4 * raw_dz
         self._pb = s.pos[2]
         s.yaw_err = math.atan2(math.sin(s.bearing - s.rpy[2]), math.cos(s.bearing - s.rpy[2]))
+        s.yaw_err_raw = s.yaw_err
         # Угловые скорости: с IMU — гироскоп (чисто), иначе численная производная
         if s.imu_ok:
             s.roll_d = s.gyro[0]

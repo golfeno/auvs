@@ -38,6 +38,7 @@ class VehicleState:
     bearing: float = 0.0
     z_err: float = 0.0
     yaw_err: float = 0.0
+    yaw_err_raw: float = 0.0
     # --- LOS-наведение (диагностика прямого хода) ---
     cross_track: float = 0.0   # поперечный снос от линии маршрута, м (+ слева от курса)
     along_track: float = 0.0   # пройдено вдоль линии маршрута, м
