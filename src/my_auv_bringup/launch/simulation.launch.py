@@ -42,6 +42,7 @@ def generate_launch_description():
             '/model/submarine/magnetometer@sensor_msgs/msg/MagneticField@gz.msgs.Magnetometer',
             '/model/submarine/altimeter@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan',
             '/model/submarine/sonar@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan',
+            '/model/submarine/sonar/points@sensor_msgs/msg/PointCloud2@gz.msgs.PointCloudPacked',
             '/model/submarine/joint/left_propeller_joint/cmd_force@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/right_propeller_joint/cmd_force@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/submarine/joint/vertical_rudder/cmd_position@std_msgs/msg/Float64@gz.msgs.Double',
