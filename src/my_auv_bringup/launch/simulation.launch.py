@@ -68,15 +68,16 @@ def generate_launch_description():
     # --- Статические TF: кадры сенсоров относительно корпуса (для отрисовки сканов) ---
     # Динамический world->submarine/body даёт OdometryPublisher (через bridge /tf).
     # frame_id сканов = "submarine/body/<sensor>" — публикуем их как дочерние к body.
+    # TF совпадают с <pose> сенсоров в SDF (звено body повёрнуто +90° по Y).
     tf_sonar = Node(
         package='tf2_ros', executable='static_transform_publisher', output='log',
-        arguments=['--x', '0.75', '--y', '0', '--z', '0',
+        arguments=['--x', '0', '--y', '0', '--z', '0.75',
+                   '--pitch', '-1.5707963',
                    '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/sonar_sensor']
     )
     tf_alt = Node(
         package='tf2_ros', executable='static_transform_publisher', output='log',
-        arguments=['--x', '0', '--y', '0', '--z', '-0.17',
-                   '--pitch', '1.5707963',
+        arguments=['--x', '0.17', '--y', '0', '--z', '0',
                    '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/altimeter_sensor']
     )
 

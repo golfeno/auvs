@@ -38,7 +38,7 @@
         <topic>/model/submarine_nb/magnetometer</topic>
       </sensor>
       <sensor name="altimeter_sensor" type="gpu_lidar">
-        <pose>0 0 -0.17 0 1.5707963 0</pose>
+        <pose>0.17 0 0 0 0 0</pose>
         <always_on>1</always_on><update_rate>10</update_rate>
         <topic>/model/submarine_nb/altimeter</topic>
         <lidar>
@@ -48,7 +48,7 @@
         </lidar>
       </sensor>
       <sensor name="sonar_sensor" type="gpu_lidar">
-        <pose>0.75 0 0 0 0 0</pose>
+        <pose>0 0 0.75 0 -1.5707963 0</pose>
         <always_on>1</always_on><update_rate>10</update_rate>
         <topic>/model/submarine_nb/sonar</topic>
         <lidar>

@@ -123,7 +123,9 @@ class PhaseManager:
             # разворот НА МЕСТЕ полным дифференциалом, ход=0. Иначе аппарат шёл бы
             # вперёд во время поворота и описывал дугу/«катет» (неэффективный путь).
             if abs(s.yaw_err) > L.turn_first:
-                p['bs'] = 0.0
+                # Разворот на месте. Если есть остаточный ход вперёд (s.vel<0) —
+                # АКТИВНО ТОРМОЗИМ (реверс), иначе аппарат глиссирует и наматывает дугу.
+                p['bs'] = max(0.0, -3.0 * s.vel)   # s.vel<0 (вперёд) -> bs>0 (реверс-тормоз)
                 yd = L.turn_gain * s.yaw_err - L.turn_damp * s.yaw_d
                 p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
             else:
@@ -143,7 +145,9 @@ class PhaseManager:
             # Альт. фаза 2: идём к XY, держим Z в коридоре. Тоже point-and-shoot.
             import math as _m
             if abs(s.yaw_err) > L.turn_first:
-                p['bs'] = 0.0
+                # Разворот на месте. Если есть остаточный ход вперёд (s.vel<0) —
+                # АКТИВНО ТОРМОЗИМ (реверс), иначе аппарат глиссирует и наматывает дугу.
+                p['bs'] = max(0.0, -3.0 * s.vel)   # s.vel<0 (вперёд) -> bs>0 (реверс-тормоз)
                 yd = L.turn_gain * s.yaw_err - L.turn_damp * s.yaw_d
                 p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
             else:
