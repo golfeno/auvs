@@ -30,30 +30,31 @@ class DepthBallastController:
             # Hold current volume
             return self._vol
 
-        # ── Depth PID → volume ──
-        self._iz += s.z_err * dt
+        # ── КАСКАД с ОГРАНИЧЕНИЕМ СКОРОСТИ ──
+        # Внешний контур: ошибка глубины -> ЖЕЛАЕМАЯ верт. скорость Vz_des,
+        # ограниченная bz_vz_max (чтобы трение успевало гасить инерцию).
+        #   z_err>0 (выше цели) -> надо ВНИЗ -> Vz_des < 0 (Vz: вверх +).
+        vz_des = -P.bz_kp_z * s.z_err
+        vz_des = max(-P.bz_vz_max, min(P.bz_vz_max, vz_des))
+
+        # Внутренний контур: гоним фактическую Vz (s.dz_dt) к желаемой.
+        # Ошибка скорости -> отклонение объёма от нейтрали.
+        #   нужна бОльшая Vz вверх -> больше плавучести -> volume вверх.
+        vz_err = vz_des - s.dz_dt
+        adj = P.bz_kp_v * vz_err
+
+        # интеграл по ошибке скорости (убирает статич. остаток у цели)
+        self._iz += vz_err * dt
         self._iz = max(-P.bz_ilim, min(P.bz_ilim, self._iz))
         if abs(s.z_err) < 0.2:
             self._iz *= 0.95
+        adj += P.bz_ki_v * self._iz
 
-        # Predictive braking for Z
-        Kd = P.Kd_bz
-        v_z = abs(s.dz_dt)
-        if v_z > 0.05 and abs(s.z_err) < 2.0:
-            decel = max(0.5, 2.0 * abs(s.vel))
-            brake_dist = (v_z * v_z) / (2.0 * decel)
-            if abs(s.z_err) < brake_dist * 1.5:
-                Kd *= 2.0
-
-        # PID (знак минус): z_err>0 (выше цели) → меньше плавучести → volume вниз
-        adj = -(P.Kp_bz * s.z_err + P.Ki_bz * self._iz + Kd * s.dz_dt)
-
-        # ОГРАНИЧЕНИЕ АВТОРИТЕТА: |отклонение от нейтрали| <= bz_authority,
-        # иначе балласт даёт ±2 м/с² и аппарат 'взлетает'. Ограничиваем силу.
+        # ОГРАНИЧЕНИЕ АВТОРИТЕТА (силы): |отклонение| <= bz_authority
         adj = max(-P.bz_authority, min(P.bz_authority, adj))
         target = P.bz_neutral + adj
 
-        # SLEW: объём не может меняться быстрее насоса (bz_slew norm/с)
+        # SLEW: объём не быстрее насоса
         d = P.bz_slew * dt
         self._vol += max(-d, min(d, target - self._vol))
         self._vol = max(0.0, min(1.0, self._vol))
