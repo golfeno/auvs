@@ -38,23 +38,17 @@
         <always_on>1</always_on><update_rate>50</update_rate>
         <topic>/model/submarine/magnetometer</topic>
       </sensor>
-      <!-- ===== АЛЬТИМЕТР: эхолот ВНИЗ (высота над дном) ===== -->
-      <sensor name="altimeter_sensor" type="gpu_lidar">
-        <pose>0.17 0 0 0 0 0</pose>
-        <always_on>1</always_on><update_rate>10</update_rate>
-        <topic>/model/submarine/altimeter</topic>
-        <lidar>
-          <scan><horizontal><samples>1</samples><resolution>1</resolution>
-            <min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
-          <range><min>0.3</min><max>100.0</max><resolution>0.01</resolution></range>
-        </lidar>
-      </sensor>
-      <!-- ===== СОНАР: эхолот ВПЕРЁД (препятствия) ===== -->
+    </link>
+
+    <!-- ===== СЕНСОРНЫЕ ЗВЕНЬЯ (НЕ повёрнуты: X=вперёд, Z=вверх) ===== -->
+    <!-- СОНАР: эхолот ВПЕРЁД (нос). Луч лидара = +X звена -> вперёд. Многолучевой 16x16. -->
+    <link name="sonar_link">
+      <pose>0.85 0 0 0 0 0</pose>
+      <inertial><mass>0.001</mass><inertia><ixx>1e-6</ixx><iyy>1e-6</iyy><izz>1e-6</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>
       <sensor name="sonar_sensor" type="gpu_lidar">
-        <pose>0 0 0.75 0 -1.5707963 0</pose>
+        <pose>0 0 0 0 0 0</pose>
         <always_on>1</always_on><update_rate>10</update_rate>
         <topic>/model/submarine/sonar</topic>
-        <gz_frame_id>submarine/body/sonar_sensor</gz_frame_id>
         <lidar>
           <scan>
             <horizontal><samples>16</samples><resolution>1</resolution>
@@ -66,6 +60,25 @@
         </lidar>
       </sensor>
     </link>
+    <joint name="sonar_joint" type="fixed"><parent>body</parent><child>sonar_link</child></joint>
+
+    <!-- АЛЬТИМЕТР: эхолот ВНИЗ (днище). pitch +90° -> луч +X звена смотрит вниз (-Z мира). -->
+    <link name="altimeter_link">
+      <pose>0 0 -0.17 0 1.5707963 0</pose>
+      <inertial><mass>0.001</mass><inertia><ixx>1e-6</ixx><iyy>1e-6</iyy><izz>1e-6</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>
+      <sensor name="altimeter_sensor" type="gpu_lidar">
+        <pose>0 0 0 0 0 0</pose>
+        <always_on>1</always_on><update_rate>10</update_rate>
+        <topic>/model/submarine/altimeter</topic>
+        <lidar>
+          <scan><horizontal><samples>1</samples><resolution>1</resolution>
+            <min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+          <range><min>0.3</min><max>100.0</max><resolution>0.01</resolution></range>
+        </lidar>
+      </sensor>
+    </link>
+    <joint name="altimeter_joint" type="fixed"><parent>body</parent><child>altimeter_link</child></joint>
+
 
     <!-- ===== ЛЕВЫЙ ПРОПЕЛЛЕР ===== -->
     <link name="left_propeller">
