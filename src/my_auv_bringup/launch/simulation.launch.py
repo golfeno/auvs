@@ -38,6 +38,9 @@ def generate_launch_description():
             '/model/submarine/odometry@nav_msgs/msg/Odometry@gz.msgs.Odometry',
             # TF: world -> submarine/body (динамическая поза аппарата) -> /tf
             '/model/submarine/tf@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
+            # Позы звеньев и СЕНСОРОВ (PosePublisher) -> /tf и /tf_static
+            '/model/submarine/pose@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
+            '/model/submarine/pose_static@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
             '/model/submarine/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
             '/model/submarine/magnetometer@sensor_msgs/msg/MagneticField@gz.msgs.Magnetometer',
             '/model/submarine/altimeter@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan',
@@ -57,7 +60,11 @@ def generate_launch_description():
             '/model/sub_ballast_3/buoyancy_engine@std_msgs/msg/Float64@gz.msgs.Double',
             '/model/sub_ballast_4/buoyancy_engine@std_msgs/msg/Float64@gz.msgs.Double',
         ],
-        remappings=[('/model/submarine/tf', '/tf')],
+        remappings=[
+            ('/model/submarine/tf', '/tf'),
+            ('/model/submarine/pose', '/tf'),
+            ('/model/submarine/pose_static', '/tf_static'),
+        ],
         output='screen'
     )
 
@@ -66,21 +73,8 @@ def generate_launch_description():
         name='virtual_barometer', output='screen'
     )
 
-    # --- Статические TF: кадры сенсоров относительно корпуса (для отрисовки сканов) ---
-    # Динамический world->submarine/body даёт OdometryPublisher (через bridge /tf).
-    # frame_id сканов = "submarine/body/<sensor>" — публикуем их как дочерние к body.
-    # TF совпадают с <pose> сенсоров в SDF (звено body повёрнуто +90° по Y).
-    tf_sonar = Node(
-        package='tf2_ros', executable='static_transform_publisher', output='log',
-        arguments=['--x', '0', '--y', '0', '--z', '0.75',
-                   '--pitch', '-1.5707963',
-                   '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/sonar_sensor']
-    )
-    tf_alt = Node(
-        package='tf2_ros', executable='static_transform_publisher', output='log',
-        arguments=['--x', '0.17', '--y', '0', '--z', '0',
-                   '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/altimeter_sensor']
-    )
+    # Позы сенсоров публикует сам gz (PosePublisher -> bridge -> /tf_static).
+    # Меняешь <pose> сенсора в SDF -> RViz подхватывает автоматически (после пересборки).
 
     # --- RViz2 (визуализация сонара/альтиметра/одометрии) ---
     rviz = Node(
@@ -90,6 +84,5 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        declare_rviz, gz_sim, spawn, bridge, fake_baro,
-        tf_sonar, tf_alt, rviz,
+        declare_rviz, gz_sim, spawn, bridge, fake_baro, rviz,
     ])

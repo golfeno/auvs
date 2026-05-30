@@ -382,6 +382,17 @@
     <plugin filename="gz-sim-buoyancy-engine-system" name="gz::sim::systems::BuoyancyEngine"><link_name>ballast_4</link_name><min_volume>0.0</min_volume><max_volume>0.015</max_volume><neutral_volume>0.0075</neutral_volume><default_volume>0.0075</default_volume><max_inflation_rate>0.001</max_inflation_rate><fluid_density>1000</fluid_density><namespace>sub_ballast_4</namespace></plugin>
 
     <!-- ===== СИСТЕМНЫЕ ПЛАГИНЫ ===== -->
+    <!-- Публикует позы ЗВЕНЬЕВ и СЕНСОРОВ в TF (единый источник правды для RViz) -->
+    <plugin filename="gz-sim-pose-publisher-system" name="gz::sim::systems::PosePublisher">
+      <publish_link_pose>true</publish_link_pose>
+      <publish_sensor_pose>true</publish_sensor_pose>
+      <publish_collision_pose>false</publish_collision_pose>
+      <publish_visual_pose>false</publish_visual_pose>
+      <publish_nested_model_pose>true</publish_nested_model_pose>
+      <use_pose_vector_msg>true</use_pose_vector_msg>
+      <static_publisher>true</static_publisher>
+      <static_update_frequency>1</static_update_frequency>
+    </plugin>
     <plugin filename="gz-sim-odometry-publisher-system" name="gz::sim::systems::OdometryPublisher">
       <odom_frame>world</odom_frame>
       <robot_base_frame>submarine/body</robot_base_frame>
