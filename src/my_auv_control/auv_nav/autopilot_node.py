@@ -13,6 +13,7 @@ from .depth_rudder import DepthRudderController
 from .depth_ballast import DepthBallastController
 from .roll import RollController
 from .telemetry import Telemetry
+from .obstacle_avoidance import ObstacleAvoidance
 from .version import VERSION, BUILD_NUMBER
 
 
@@ -26,6 +27,7 @@ class AUVAutopilotNode(Node):
         self.depth_r = DepthRudderController()
         self.depth_b = DepthBallastController()
         self.roll = RollController()
+        self.obstacle = ObstacleAvoidance()
         self.tl = Telemetry(self)
 
         self.pub_lt   = self.create_publisher(Float64, '/model/submarine/joint/left_propeller_joint/cmd_force', 10)
@@ -77,8 +79,16 @@ class AUVAutopilotNode(Node):
             self.depth_r.reset()
             self.depth_b.reset()
             self.roll.reset()
+            self.obstacle.reset()
             self._b = 0.0
             self.pm.need_pid_reset = False
+
+        # ── Obstacle avoidance (не в HOVER / FINISH) ──
+        av = None
+        if ph not in ('HOVER_STAB', 'FINISH'):
+            av = self.obstacle.compute(s.sonar_ranges, s.dist_2d, Phys.DT)
+            s.yaw_err += av.yaw_offset
+            s.z_err += av.z_offset
 
         cmd = ActuatorCommands()
 
@@ -98,6 +108,14 @@ class AUVAutopilotNode(Node):
         sl = slew_map.get(ph, 6.0)
         d = sl * Phys.DT
         tgt = tp.get('bs', 0.0)
+
+        # Обход: тормозим при приближении к препятствию
+        if av and av.obstacle_near:
+            if av.emergency:
+                tgt = max(0.0, -3.0 * s.vel)     # реверс — активное торможение
+            else:
+                tgt *= av.speed_factor            # плавное замедление
+
         self._b = self._b + max(-d, min(d, tgt - self._b))
 
         if ph in ('HOVER_STAB', 'FINISH'):
@@ -118,7 +136,7 @@ class AUVAutopilotNode(Node):
             self.tl.log_wp(self.pm.wp_idx + 1)
             self.pm.wp_idx += 1
             if self.pm.wp_idx < self.tw:
-                self.heading.reset(); self.depth_r.reset(); self.depth_b.reset(); self.roll.reset()
+                self.heading.reset(); self.depth_r.reset(); self.depth_b.reset(); self.roll.reset(); self.obstacle.reset()
                 self._b = 0.0
                 self.pm.init_wp(t, s.pos)
             else:
@@ -223,7 +241,7 @@ def _ask(p, v, d=None):
 
 def main():
     print("=" * 50)
-    print(f"  AUV Autopilot {VERSION} | СБОРКА #{BUILD_NUMBER} | 4 фазы, IMU/Kalman, балласт")
+    print(f"  AUV Autopilot {VERSION} | СБОРКА #{BUILD_NUMBER} | 4 фазы, IMU/Kalman, балласт, обход препятствий")
     print("=" * 50)
 
     default_file = os.path.expanduser("~/auv/waypoints.txt")

@@ -30,6 +30,7 @@ class VehicleState:
     alt_floor: float = -1.0    # высота над дном, м (-1 = нет данных)
     sonar_fwd: float = -1.0    # дистанция до препятствия впереди, м (-1 = чисто)
     sonar_ok: bool = False
+    sonar_ranges: list = field(default_factory=list)  # сырые данные сонара (16×16 = 256 значений)
     baro_z: float = 0.0
     dz_dt: float = 0.0
     dist_2d: float = 1000.0

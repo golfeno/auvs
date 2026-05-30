@@ -33,6 +33,13 @@
         <always_on>1</always_on><update_rate>50</update_rate>
         <topic>/sub_press</topic>
       </sensor>
+      <!-- ===== СОНАР — маркер позиции (визуал, без коллизии) ===== -->
+      <visual name="sonar_marker">
+        <pose>0.8 0 0 0 0 0</pose>
+        <geometry><sphere><radius>0.06</radius></sphere></geometry>
+        <material><ambient>1.0 0.1 0.8 1</ambient><diffuse>1.0 0.1 0.8 1</diffuse><specular>1.0 0.1 0.8 1</specular></material>
+      </visual>
+
       <!-- ===== МАГНИТОМЕТР (абсолютный курс) ===== -->
       <sensor name="mag_sensor" type="magnetometer">
         <always_on>1</always_on><update_rate>50</update_rate>

@@ -137,9 +137,14 @@ class PhaseManager:
                 if -t < L.cruise_min:
                     t = -L.cruise_min
                 p['bs'] = t
-                yd = 6.0 * s.yaw_err               # жёстче правим курс
-                ylim = L.yd_frac * abs(t)
-                p['yd'] = max(-ylim, min(ylim, yd))
+                # Дифференциал: при малой ошибке (<5°) — ноль, руль сам выправит.
+                # Иначе аппарат дугой идёт вместо прямой.
+                if abs(s.yaw_err) < 0.087:          # ~5° — руль справится
+                    p['yd'] = 0.0
+                else:
+                    yd = 6.0 * s.yaw_err
+                    ylim = L.yd_frac * abs(t)
+                    p['yd'] = max(-ylim, min(ylim, yd))
 
         elif self.state == 'Z_CORRIDOR':
             # Альт. фаза 2: идём к XY, держим Z в коридоре. Тоже point-and-shoot.
@@ -161,9 +166,12 @@ class PhaseManager:
                 if -t < L.cruise_min:
                     t = -L.cruise_min
                 p['bs'] = t
-                yd = 6.0 * s.yaw_err
-                ylim = L.yd_frac * abs(t)
-                p['yd'] = max(-ylim, min(ylim, yd))
+                if abs(s.yaw_err) < 0.087:
+                    p['yd'] = 0.0
+                else:
+                    yd = 6.0 * s.yaw_err
+                    ylim = L.yd_frac * abs(t)
+                    p['yd'] = max(-ylim, min(ylim, yd))
 
         elif self.state == 'Z_STAB':
             # Фаза 2b: в зоне XY, доводим Z (подъём/спуск)

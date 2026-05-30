@@ -138,6 +138,7 @@ class SensorFusion:
     def _sonar(self, msg):
         """Сонар (веер вперёд) → дистанция до ближайшего препятствия."""
         s = self.state
+        s.sonar_ranges = list(msg.ranges)    # полные данные для obstacle_avoidance
         rng = [r for r in msg.ranges if math.isfinite(r) and r > 0.0]
         s.sonar_fwd = min(rng) if rng else -1.0
         s.sonar_ok = True
