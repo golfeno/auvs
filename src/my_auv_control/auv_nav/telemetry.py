@@ -48,6 +48,15 @@ class Telemetry:
         avoid = '' if am == 'NORMAL' else f"[ОБХОД:{am}] "
 
         son = f"{s.sonar_fwd:.1f}м" if (s.sonar_ok and s.sonar_fwd >= 0) else "чисто"
+        # Диагностика обхода: ближайшая точка / валидные лучи / выбор стороны / поправка курса
+        def _zf(v):  # 999 (нет эха) -> "∞"
+            return "∞" if v >= 900 else f"{v:.1f}"
+        dbg = (f" | СОНАР[лучи:{getattr(s, 'sonar_valid', 0)} "
+               f"бл:{getattr(s, 'avoid_closest', 999):.1f}м "
+               f"L{_zf(getattr(s,'zL',999))} R{_zf(getattr(s,'zR',999))} "
+               f"U{_zf(getattr(s,'zU',999))} D{_zf(getattr(s,'zD',999))} "
+               f"dir:{getattr(s, 'avoid_dir', '-')} "
+               f"yaw_av:{math.degrees(getattr(s, 'avoid_yaw', 0.0)):+.0f}°]")
         alt = f"{s.alt_floor:.1f}м" if s.alt_floor >= 0 else "--"
         dl = getattr(self, 'depth_label', '')   # режим глубины (ставит autopilot)
 
@@ -60,6 +69,12 @@ class Telemetry:
             f"RPY:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}° Сонар:{son}"
         )
 
+        line += dbg
+        # Состояние сенсоров: источник ориентации, магнитометр, альтиметр (дно).
+        mag = f"{math.degrees(s.mag_heading):+.0f}°" if getattr(s, 'mag_ok', False) else "нет"
+        line += (f" | СЕНС[ор:{src} mag:{mag} дно:{alt} "
+                 f"имю:{'да' if s.imu_ok else 'нет'} "
+                 f"сонар:{'да' if s.sonar_ok else 'нет'}]")
         if dl:
             line += f" | {dl}"
         if cmd is not None:

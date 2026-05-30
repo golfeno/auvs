@@ -141,6 +141,7 @@ class SensorFusion:
         s.sonar_ranges = list(msg.ranges)    # полные данные для obstacle_avoidance
         rng = [r for r in msg.ranges if math.isfinite(r) and r > 0.0]
         s.sonar_fwd = min(rng) if rng else -1.0
+        s.sonar_valid = len(rng)             # сколько лучей дали конечную дистанцию
         s.sonar_ok = True
 
     def _odom(self, msg):

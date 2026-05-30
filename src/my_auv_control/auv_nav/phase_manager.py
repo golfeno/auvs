@@ -20,7 +20,10 @@ class PhaseManager:
         self._avoid_prev = 'NAV'
         self._avoid_clear = 0.0
         self._avoid_exit_t = 0.0
+        self.avoid_entry_heading = 0.0  # курс (yaw) в момент входа в AVOID — память
         self._start_t = None  # время первого тика
+        self._wp_t0 = 0.0       # время начала текущего сегмента (для мягкого старта)
+        self._elapsed_wp = 0.0  # прошло секунд с начала сегмента
 
     def init_wp(self, t, pos):
         raw = list(self.waypoints[self.wp_idx])
@@ -31,6 +34,8 @@ class PhaseManager:
             self.seg_start = list(pos)
         self.state = 'NAV'
         self.need_pid_reset = True
+        self._wp_t0 = t
+        self._elapsed_wp = 0.0
 
     def update_drift(self, s, t, dt):
         if dt <= 0: return
@@ -55,29 +60,44 @@ class PhaseManager:
         # Запоминаем время старта
         if self._start_t is None:
             self._start_t = t
+            self._wp_t0 = t
+        # Сколько секунд идём к текущей точке (для мягкого старта в params()).
+        self._elapsed_wp = t - self._wp_t0
 
-        obstacle_near = av is not None and av.closest <= 5.0
+        # Признак близости берём из самого модуля обхода (closest <= AVOID_RANGE).
+        obstacle_near = av is not None and av.obstacle_near
 
         # ─── ВХОД В AVOID ───
-        # Гистерезис: не входить 8 сек после выхода
+        # Короткий лок-аут (1 с) после выхода — НЕ блокирует реакцию на следующее
+        # препятствие (раньше было 8 с: после блока аппарат «слеп» и врезался в
+        # стену сразу за ним). 1 с лишь гасит дребезг на границе одного объекта.
         if obstacle_near and self.state not in ('HOVER_STAB', 'FINISH'):
-            if t - self._avoid_exit_t < 8.0:
+            if self.state != 'AVOID' and (t - self._avoid_exit_t) < 1.0:
                 return self.state
             if self.state != 'AVOID':
                 self._avoid_prev = self.state
+                # ЗАПОМИНАЕМ курс ПЕРЕД входом в обход — обход будет рулить
+                # ОТНОСИТЕЛЬНО него (доминируя над целью), а на проходе вернётся к нему.
+                self.avoid_entry_heading = s.rpy[2]
             self.state = 'AVOID'
             self._avoid_clear = 0.0
             return self.state
 
         # ─── ВЫХОД ИЗ AVOID ───
+        # Выходим через AVOID_CLEAR_TIME (2 с) чистого фронта — достаточно, чтобы
+        # корпус прошёл МИМО помехи (pass-through), но не «висим» 8 с впустую.
         if self.state == 'AVOID':
             if not obstacle_near:
                 self._avoid_clear += dt
-                if self._avoid_clear >= 8.0:
+                if self._avoid_clear >= 2.0:
                     self.state = self._avoid_prev
                     self._avoid_exit_t = t
                     self.need_pid_reset = True
                     self._aligned = False
+                    # ── REROUTE: новая прямая от ТЕКУЩЕЙ позиции к цели ──
+                    # Иначе LOS тянул бы обратно на исходную линию A→B, которая
+                    # проходит сквозь обойдённое препятствие.
+                    self.seg_start = list(s.pos)
                     return self.state
             else:
                 self._avoid_clear = 0.0
@@ -130,37 +150,38 @@ class PhaseManager:
     def params(self, s: VehicleState, av=None) -> Dict:
         p = {'bs': 0.0, 'yd': 0.0}
 
-        # ─── AVOID ───
+        # ─── AVOID (VFH) ───
         if self.state == 'AVOID':
-            p['bs'] = -3.0
-            speed = abs(s.vel)
-            if av is not None:
-                if speed < 0.2:
-                    p['yd'] = max(-15.0, min(15.0, av.yaw_offset * 15.0))
-                else:
-                    gain = max(2.0, min(5.0, 5.0 - speed * 4.0))
-                    p['yd'] = max(-8.0, min(8.0, av.yaw_offset * gain))
+            # Тяга обхода: даём заметный ход, чтобы корпус проходил мимо помехи.
+            p['bs'] = L.avoid_thrust
+            if av is not None and getattr(av, 'has_heading', False):
+                # Дифференциал моторов по ТОЙ ЖЕ ошибке курса, что и руль —
+                # на абсолютный desired_heading из VFH (иначе моторы и руль спорят).
+                ye = math.atan2(math.sin(av.desired_heading - s.rpy[2]),
+                                math.cos(av.desired_heading - s.rpy[2]))
+                p['yd'] = max(-12.0, min(12.0, 12.0 * ye - 4.0 * s.yaw_d))
             return p
 
         ra = s.roll_abs
         dist = s.dist_2d
 
-        # ─── Мягкий старт: первые 5 сек — без разворота на месте ───
-        soft_start = self._start_t is not None and (s_time - self._start_t) < 5.0 if (s_time := self._start_t) else False
-        # Пересчитаем корректно:
-        elapsed = 0.0
-        if self._start_t is not None:
-            # Мы не имеем доступа к текущему t здесь, передадим через s? Нет.
-            # Просто проверим по скорости: если vel≈0 и далеко от цели — мягкий старт
-            pass
+        # ─── Мягкий старт: ВРЕМЕННОЙ (первые L.soft_start_t сек сегмента) ───
+        # Раньше условие было по скорости (vel<0.3) с тягой -3.0, а терминальная
+        # скорость при такой тяге ~0.08 м/с < 0.3 -> условие НИКОГДА не снималось,
+        # аппарат вечно полз на 0.08 и до круиза (L.cruise) не доходил. Теперь
+        # мягкий старт ограничен по времени и плавно наращивает тягу до круиза.
+        soft_start = self._elapsed_wp < L.soft_start_t and dist > 10.0
 
         if self.state == 'NAV':
             import math as _m
-            # На старте: не разворачиваться на месте, мягко набрать ход
-            if abs(s.vel) < 0.3 and dist > 10.0:
-                # Мягкий старт: просто идём вперёд, без разворота
-                p['bs'] = -3.0  # мягкая тяга
-                # Мягкий поворот (не полный разворот)
+            if soft_start and abs(s.yaw_err) < L.turn_first:
+                # Линейно наращиваем тягу 0 -> L.cruise за L.soft_start_t сек,
+                # без разворота на месте (мягко набираем ход прямо по курсу).
+                frac = max(0.15, min(1.0, self._elapsed_wp / L.soft_start_t))
+                t = L.cruise * frac
+                if -t < L.cruise_min:
+                    t = -L.cruise_min
+                p['bs'] = t
                 p['yd'] = max(-4.0, min(4.0, 4.0 * s.yaw_err))
             elif abs(s.yaw_err) > L.turn_first:
                 p['bs'] = max(0.0, -3.0 * s.vel)
@@ -239,8 +260,16 @@ class PhaseManager:
 
             if not self._aligned:
                 p['bs'] = 0.0
-                yd = L.turn_gain * ye - L.turn_damp * s.yaw_d
-                p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
+                # УСИЛЕННЫЙ разворот движками в режимах глубины РУЛИ/ОБА: там
+                # горизонтальные рули заняты удержанием глубины и плохо помогают
+                # курсу, поэтому доворачиваем мощнее моторами (иначе аппарат
+                # промахивался мимо точки в фазах 3/4).
+                if self.dm in (DepthMode.RUDDER, DepthMode.BOTH):
+                    yd = L.app_turn_gain * ye - L.app_turn_damp * s.yaw_d
+                    p['yd'] = max(-L.app_turn_thrust, min(L.app_turn_thrust, yd))
+                else:
+                    yd = L.turn_gain * ye - L.turn_damp * s.yaw_d
+                    p['yd'] = max(-L.turn_thrust, min(L.turn_thrust, yd))
             else:
                 v_fwd = -s.vel
                 decel = 0.6

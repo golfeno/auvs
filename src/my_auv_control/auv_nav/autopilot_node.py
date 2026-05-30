@@ -5,7 +5,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Float64
 from visualization_msgs.msg import Marker, MarkerArray
-from .models import MotorMode, DepthMode, ActuatorCommands, Phys, PID
+from .models import MotorMode, DepthMode, ActuatorCommands, Phys, PID, Lim
 from .sensor_fusion import SensorFusion
 from .phase_manager import PhaseManager
 from .guidance import LOSGuidance
@@ -91,8 +91,20 @@ class AUVAutopilotNode(Node):
         av = None
         s.avoid_mode = 'NORMAL'
         if self.pm.state not in ('HOVER_STAB', 'FINISH'):
-            av = self.obstacle.compute(s.sonar_ranges, s.dist_2d, Phys.DT)
+            # Порог входа в обход зависит от фазы: на маршевых (круиз/коридор) —
+            # дальний (12 м, заранее видим помеху), на ближних (Z_STAB/сближение) —
+            # короткий (5 м, не дёргаемся у самой точки).
+            if self.pm.state in ('NAV', 'Z_CORRIDOR'):
+                self.obstacle.AVOID_RANGE = self.obstacle.AVOID_RANGE_FAR
+            else:
+                self.obstacle.AVOID_RANGE = self.obstacle.AVOID_RANGE_NEAR
+            av = self.obstacle.compute(s.sonar_ranges, s.rpy[2], s.bearing, Phys.DT)
             s.avoid_mode = av.mode
+            # диагностика обхода для телеметрии
+            s.avoid_closest = av.closest
+            s.avoid_yaw = av.yaw_offset
+            s.avoid_dir = av._dir if av._dir else '-'
+            s.zL = av.zL; s.zR = av.zR; s.zU = av.zU; s.zD = av.zD
 
         # ─── Фаза ───
         prev_ph = self.pm.state
@@ -103,14 +115,19 @@ class AUVAutopilotNode(Node):
                              f"yaw_off={av.yaw_offset if av else 0:+.2f})\n")
             sys.stdout.flush()
 
-        # LOS
+        # ─── LOS-наведение по прямой A→B ───
+        # Держим аппарат на ОТРЕЗКЕ маршрута (а не дугой к точке). seg_start
+        # после обхода переустанавливается на текущую позицию (reroute), поэтому
+        # LOS ведёт от места, где аппарат разошёлся с препятствием, прямо к цели.
+        # Применяем только в маршевых фазах; в APPROACH — наведение на точку.
         self.los.set_segment(self.pm.seg_start, self.pm.target)
-        s.cross_track = 0.0
+        if ph in ('NAV', 'Z_CORRIDOR'):
+            self.los.apply(s)        # перепишет s.yaw_err по закону LOS
+        else:
+            s.cross_track = 0.0
 
-        # ─── av.yaw_offset к s.yaw_err только НЕ в AVOID ───
-        if av is not None and ph != 'AVOID':
-            s.yaw_err += av.yaw_offset
-            s.z_err += av.z_offset
+        # VFH-обход активен ТОЛЬКО в фазе AVOID (там рулим на desired_heading).
+        # Вне AVOID курс/глубину ведут LOS и контуры цели — поправку не подмешиваем.
 
         # Reset on phase change
         if self.pm.need_pid_reset:
@@ -118,7 +135,10 @@ class AUVAutopilotNode(Node):
             self.depth_r.reset()
             self.depth_b.reset()
             self.roll.reset()
-            self.obstacle.reset()
+            # ВАЖНО: obstacle.reset() здесь НЕ вызываем — иначе при входе в AVOID
+            # стирается память PASS-through (_dir/_pass) и обход бросает манёвр,
+            # как только конус сонара теряет объект. Память обхода живёт всю
+            # текущую точку; сбрасывается при смене waypoint (arrival/init_wp).
             self._b = 0.0
             self.pm.need_pid_reset = False
 
@@ -128,14 +148,23 @@ class AUVAutopilotNode(Node):
         cmd = ActuatorCommands()
 
         # ─── РУЛИ ───
-        if ph == 'AVOID' and av is not None:
-            # Вертикальные рули — на поворот
-            yaw_rud = max(-PID.rud_max, min(PID.rud_max, av.yaw_offset * PID.Kp_yaw))
-            cmd.rv = yaw_rud
-            cmd.rvt = max(-PID.roll_v_lim, min(PID.roll_v_lim, av.yaw_offset * 5.0))
-            # Горизонтальные — нейтраль (иначе depth_rudder тянет вверх)
-            cmd.hl = 0.0; cmd.hr = 0.0; cmd.hfl = 0.0; cmd.hfr = 0.0
-            # Балласт — плавный (как всегда)
+        if ph == 'AVOID' and av is not None and av.has_heading:
+            # ── VFH: рулим на АБСОЛЮТНЫЙ desired_heading из обходчика ──
+            # Обходчик сам выбрал свободную «долину» ближе к цели и выдал твёрдый
+            # абсолютный курс (с коммитом/гистерезисом -> без щёлканья). Курс на
+            # цель в фазе AVOID не вмешивается: desired_heading уже учитывает цель.
+            import math as _m
+            yaw_err_av = _m.atan2(_m.sin(av.desired_heading - s.rpy[2]),
+                                  _m.cos(av.desired_heading - s.rpy[2]))
+            yaw_cmd = PID.Kp_yaw * yaw_err_av - PID.Kd_yaw * s.yaw_d
+            cmd.rv = max(-PID.rud_max, min(PID.rud_max, yaw_cmd))
+            # Верхний верт. руль помогает повороту + гасит крен.
+            cmd.rvt = max(-PID.roll_v_lim, min(PID.roll_v_lim,
+                          yaw_err_av * 1.5 + PID.Kp_roll_v * s.rpy[0]))
+
+            # Глубину держим на цели маршрута (VFH обходит ТОЛЬКО по горизонтали).
+            if self.dm in (DepthMode.RUDDER, DepthMode.BOTH):
+                cmd.hl, cmd.hr, cmd.hfl, cmd.hfr = self.depth_r.compute(s, ph, Phys.DT)
             if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
                 cmd.ballast_volume = self.depth_b.compute(s, ph, Phys.DT)
         else:
@@ -148,21 +177,29 @@ class AUVAutopilotNode(Node):
 
         # ─── Тяга ───
         slew_map = {'NAV': 6.0, 'Z_CORRIDOR': 6.0, 'Z_STAB': 5.0,
-                    'APPROACH': 8.0, 'AVOID': 3.0, 'HOVER_STAB': 0.0, 'FINISH': 0.0}
+                    'APPROACH': 8.0, 'AVOID': 8.0, 'HOVER_STAB': 0.0, 'FINISH': 0.0}
         sl = slew_map.get(ph, 6.0)
         d = sl * Phys.DT
         tgt = tp.get('bs', 0.0)
 
+        # Замедление у помехи (чтобы не врезаться): множим тягу на speed_factor
+        # ВО ВСЕХ фазах, где помеха близко (в т.ч. AVOID). speed_factor спадает к
+        # MIN_SPEED по мере приближения.
         if av is not None and av.obstacle_near:
             tgt *= av.speed_factor
+            # У самого объекта (ближе BRAKE_RANGE) НЕ глушим ход в ноль/реверс —
+            # держим МИНИМАЛЬНЫЙ ход вперёд (avoid_thrust*MIN_SPEED). Так аппарат
+            # не врезается (медленно), но и не виснет: есть поток на рулях.
+            if av.closest < self.obstacle.BRAKE_RANGE:
+                min_fwd = Lim.avoid_thrust * self.obstacle.MIN_SPEED  # отрицательная = вперёд
+                tgt = min(tgt, min_fwd)   # не быстрее, но и не медленнее минимума
 
         self._b = self._b + max(-d, min(d, tgt - self._b))
 
         if ph in ('HOVER_STAB', 'FINISH'):
             cmd.lt = 0.0; cmd.rt = 0.0
-        elif self.mm == MotorMode.SINGLE:
-            cmd.lt = self._b; cmd.rt = self._b
         else:
+            # Дифференциал движков: курс рулится разницей тяги (единственный режим).
             yd = tp.get('yd', 0.0)
             cmd.lt = self._b + yd
             cmd.rt = self._b - yd
@@ -273,7 +310,7 @@ def _ask(p, v, d=None):
 
 def main():
     print("=" * 50)
-    print(f"  AUV Autopilot {VERSION} | СБОРКА #{BUILD_NUMBER} | v101")
+    print(f"  AUV Autopilot {VERSION} | СБОРКА #{BUILD_NUMBER}")
     print("=" * 50)
 
     default_file = os.path.expanduser("~/auv/waypoints.txt")
@@ -302,10 +339,7 @@ def main():
             except ValueError:
                 pass
 
-    mm = _ask("\nДвигатели [1=синхрон / 2=дифференциал] (2): ", {1, 2}, 2)
-    motor = MotorMode.SINGLE if mm == 1 else MotorMode.DUAL
-    if motor == MotorMode.SINGLE:
-        print("  ⚠  Оба движка синхронно, курс через вертик. руль.")
+    motor = MotorMode.DUAL   # единственный режим (дифференциал движков)
 
     dm = _ask("Глубина [1=рули / 2=балласты / 3=оба] (1): ", {1, 2, 3}, 1)
     depth = {1: DepthMode.RUDDER, 2: DepthMode.BALLAST, 3: DepthMode.BOTH}[dm]
