@@ -1,44 +1,54 @@
 #!/usr/bin/env python3
-"""Ballast Neutral Finder (v4) — поиск нейтрали по ТЕРМИНАЛЬНОЙ СКОРОСТИ.
+"""Ballast Calibration (v5) — нейтральная плавучесть + регулировка ДИФФЕРЕНТА.
 
-Почему терминальная скорость, а НЕ ускорение:
-  На установившемся режиме сопротивление воды уравновешивает силу плавучести,
-  поэтому УСКОРЕНИЕ становится ~0 при ЛЮБОЙ постоянной скорости — даже когда
-  аппарат уверенно всплывает/тонет. (Это давало ложную «нейтраль»: a~0, но
-  Vz=+0.18 м/с.) Истинная нейтраль = НУЛЕВАЯ установившаяся скорость:
-        Vz_терм -> 0  <=>  чистая сила -> 0  <=>  НЕЙТРАЛЬ.
-    Vz > 0  -> всплывает (избыток плавучести) -> уменьшить объём
-    Vz < 0  -> тонет (недостаток)            -> увеличить объём
+СТАДИЯ 1 — ГЛУБИНА (нейтральная плавучесть):
+  Метрика = установившаяся (терминальная) скорость Vz по барометру.
+  Истинная нейтраль = Vz_терм -> 0. Плавный свип (шаг падает на овершутах),
+  затем ЛИНЕЙНАЯ ИНТЕРПОЛЯЦИЯ корня между двумя точками, охватывающими ноль
+  (Vz<0 и Vz>0) -> точность лучше шага, плюс проверочное измерение.
 
-Ключ: ДОЛГОЕ время успокоения (settle), чтобы аппарат реально вышел на
-терминальную скорость и измерение не зависело от предыдущего шага. Ускорение
-печатается для контроля (должно быть ~0 на терминале).
+СТАДИЯ 2 — ДИФФЕРЕНТ (баланс нос/корма):
+  При найденном базовом объёме перераспределяем объём между носовыми баками
+  (ballast_1,2) и кормовыми (ballast_3,4), СОХРАНЯЯ суммарный объём:
+        нос  = base + trim   (2 бака)
+        корма= base - trim   (2 бака)   -> суммарный объём неизменен.
+  Метрика дифферента = вертикальная компонента продольной оси аппарата:
+        pitch_metric = 1 - 2*(qx^2 + qy^2)   (по одометрии)
+  При горизонтальном положении продольная ось горизонтальна -> метрика ~0.
+  Hill-climb по |pitch_metric| (минимизируем наклон), знак определяется сам.
 
-Vz и a считаются по БАРОМЕТРУ. НЕ управляйте аппаратом!
+Vz по барометру, ориентация по одометрии. НЕ управляйте аппаратом!
 """
 import sys
 import rclpy
 from rclpy.node import Node
+from nav_msgs.msg import Odometry
 from std_msgs.msg import Float32, Float64
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 MODEL = 'submarine'
-MAX_BALLAST_VOL = 0.015     # м³ на бак (из SDF max_volume)
+MAX_BALLAST_VOL = 0.015
 P_Z0 = 101325.0
 RHO_G = 9810.0
+# Карта баков: индексы 0..3 -> ballast_1..4. Нос = 1,2 (X>0); корма = 3,4 (X<0).
+BOW = (0, 1)
+STERN = (2, 3)
 
 
-class BallastNeutralFinder(Node):
+class BallastCalib(Node):
     def __init__(self):
-        super().__init__('ballast_neutral_finder')
+        super().__init__('ballast_calibration')
 
-        self.declare_parameter('settle_time', 20.0)  # ДОЛГО: выход на терминальную скорость
-        self.declare_parameter('measure_time', 6.0)  # окно усреднения терминальной скорости
-        self.declare_parameter('vz_tol', 0.01)       # м/с — порог нейтрали по СКОРОСТИ
-        self.declare_parameter('acc_max', 0.01)      # м/с² — требуем, чтобы вышли на терминал (a мало)
+        self.declare_parameter('settle_time', 20.0)
+        self.declare_parameter('measure_time', 6.0)
+        self.declare_parameter('vz_tol', 0.01)
+        self.declare_parameter('acc_max', 0.01)
         self.declare_parameter('step0', 0.25)
         self.declare_parameter('step_min', 0.004)
         self.declare_parameter('start_vol', 0.5)
+        self.declare_parameter('trim_step0', 0.1)
+        self.declare_parameter('trim_step_min', 0.005)
+        self.declare_parameter('pitch_tol', 0.01)
         self.declare_parameter('max_iter', 40)
         self.settle_time  = self.get_parameter('settle_time').value
         self.measure_time = self.get_parameter('measure_time').value
@@ -47,6 +57,9 @@ class BallastNeutralFinder(Node):
         self.step         = self.get_parameter('step0').value
         self.step_min     = self.get_parameter('step_min').value
         self.vol          = self.get_parameter('start_vol').value
+        self.trim_step    = self.get_parameter('trim_step0').value
+        self.trim_step_min= self.get_parameter('trim_step_min').value
+        self.pitch_tol    = self.get_parameter('pitch_tol').value
         self.max_iter     = self.get_parameter('max_iter').value
 
         self.pub_b = [self.create_publisher(
@@ -55,157 +68,216 @@ class BallastNeutralFinder(Node):
         qos = QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT,
                          history=HistoryPolicy.KEEP_LAST)
         self.create_subscription(Float32, f'/model/{MODEL}/pressure', self._press, qos)
+        self.create_subscription(Odometry, f'/model/{MODEL}/odometry', self._odom, 10)
 
-        self.depth = 0.0
-        self.prev_depth = None
-        self.prev_t = None
-        self.vz = 0.0           # вертикальная скорость (вверх +)
-        self.prev_vz = 0.0
-        self.acc = 0.0          # вертикальное ускорение (вверх +)
+        # сенсоры
+        self.depth = 0.0; self.prev_depth = None; self.prev_t = None
+        self.vz = 0.0; self.acc = 0.0
+        self.pitch_metric = 0.0
         self.data_ok = False
 
-        self.prev_sign = None
-        self.iter = 0
+        # стадия
+        self.stage = 'DEPTH'        # DEPTH -> TRIM -> DONE
         self.phase = 'INIT'
         self.t_phase = None
-        self.acc_acc = 0.0
-        self.vz_acc = 0.0
+        self.acc_acc = self.vz_acc = self.pm_acc = 0.0
         self.n = 0
-        self.best = None
-        self.hit_top = False
-        self.hit_bottom = False
 
-        self._set_volume(self.vol)
+        # стадия глубины
+        self.base = self.vol
+        self.prev_sign = None
+        self.lo = None; self.hi = None      # bracket (vol, vz)
+        self.iter = 0
+        self.best = None
+
+        # стадия дифферента
+        self.trim = 0.0
+        self.prev_trim_cost = None
+        self.trim_dir = +1
+        self.trim_iter = 0
+        self.best_trim = None
+
+        self._set_depth(self.vol)
         self.timer = self.create_timer(0.1, self._loop)
 
-        sys.stdout.write("\n" + "=" * 64 + "\n")
-        sys.stdout.write("  ПОИСК НЕЙТРАЛИ ПО ТЕРМИНАЛЬНОЙ СКОРОСТИ (плавный свип)\n")
-        sys.stdout.write(f"  step0={self.step} settle={self.settle_time}s "
-                         f"measure={self.measure_time}s vz_tol={self.vz_tol} м/с\n")
-        sys.stdout.write("  Метрика = установившаяся Vz (Vz~0 => нейтраль). НЕ управляйте аппаратом!\n")
-        sys.stdout.write("=" * 64 + "\n\n")
+        sys.stdout.write("\n" + "=" * 66 + "\n")
+        sys.stdout.write("  КАЛИБРОВКА БАЛЛАСТА: 1) нейтраль по Vz  2) дифферент по наклону\n")
+        sys.stdout.write(f"  settle={self.settle_time}s measure={self.measure_time}s\n")
+        sys.stdout.write("  НЕ управляйте аппаратом!\n")
+        sys.stdout.write("=" * 66 + "\n\n")
         sys.stdout.flush()
 
+    # ---------- сенсоры ----------
     def _press(self, msg):
         t = self.get_clock().now().nanoseconds / 1e9
         self.depth = (P_Z0 - msg.data) / RHO_G
         if self.prev_depth is not None and self.prev_t is not None:
             dt = t - self.prev_t
             if dt > 1e-3:
-                raw_vz = (self.depth - self.prev_depth) / dt          # вверх +
-                vz_f = 0.7 * self.vz + 0.3 * raw_vz
-                raw_acc = (vz_f - self.vz) / dt
-                self.acc = 0.8 * self.acc + 0.2 * raw_acc
-                self.vz = vz_f
-        self.prev_depth = self.depth
-        self.prev_t = t
-        self.data_ok = True
+                raw = (self.depth - self.prev_depth) / dt
+                vzf = 0.7 * self.vz + 0.3 * raw
+                self.acc = 0.8 * self.acc + 0.2 * (vzf - self.vz) / dt
+                self.vz = vzf
+        self.prev_depth = self.depth; self.prev_t = t; self.data_ok = True
 
-    def _set_volume(self, norm):
-        norm = max(0.0, min(1.0, norm))
-        self.vol = norm
+    def _odom(self, msg):
+        q = msg.pose.pose.orientation
+        # вертикальная компонента продольной оси (наклон по тангажу), ~0 при горизонте
+        self.pitch_metric = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
+
+    # ---------- управление баками ----------
+    def _set_depth(self, norm):
+        """Одинаковый объём на все баки (норм. 0..1)."""
+        norm = max(0.0, min(1.0, norm)); self.vol = norm
         for p in self.pub_b:
             p.publish(Float64(data=norm * MAX_BALLAST_VOL))
 
+    def _set_trim(self, base, trim):
+        """Нос = base+trim, корма = base-trim (суммарный объём сохраняется)."""
+        bow = max(0.0, min(1.0, base + trim))
+        stern = max(0.0, min(1.0, base - trim))
+        for i in BOW:
+            self.pub_b[i].publish(Float64(data=bow * MAX_BALLAST_VOL))
+        for i in STERN:
+            self.pub_b[i].publish(Float64(data=stern * MAX_BALLAST_VOL))
+
+    # ---------- цикл ----------
     def _loop(self):
         if not self.data_ok:
             return
         t = self.get_clock().now().nanoseconds / 1e9
-
         if self.phase == 'INIT':
-            self.phase = 'SETTLE'; self.t_phase = t
-            return
-
+            self.phase = 'SETTLE'; self.t_phase = t; return
         if self.phase == 'SETTLE':
             if t - self.t_phase >= self.settle_time:
                 self.phase = 'MEASURE'; self.t_phase = t
-                self.acc_acc = 0.0; self.vz_acc = 0.0; self.n = 0
+                self.acc_acc = self.vz_acc = self.pm_acc = 0.0; self.n = 0
             else:
-                sys.stdout.write(f"\r[итер {self.iter}] vol={self.vol:.4f} step={self.step:.4f} "
-                                 f"наполнение... a={self.acc:+.4f} Vz={self.vz:+.3f}   ")
-                sys.stdout.flush()
+                self._progress("успокоение")
             return
-
         if self.phase == 'MEASURE':
-            self.acc_acc += self.acc; self.vz_acc += self.vz; self.n += 1
+            self.acc_acc += self.acc; self.vz_acc += self.vz
+            self.pm_acc += self.pitch_metric; self.n += 1
             if t - self.t_phase >= self.measure_time:
-                a = self.acc_acc / max(1, self.n)
-                vz = self.vz_acc / max(1, self.n)
-                self._evaluate(a, vz)
+                a = self.acc_acc / self.n; vz = self.vz_acc / self.n; pm = self.pm_acc / self.n
+                if self.stage == 'DEPTH':
+                    self._eval_depth(a, vz)
+                else:
+                    self._eval_trim(pm)
             else:
-                sys.stdout.write(f"\r[итер {self.iter}] vol={self.vol:.4f} step={self.step:.4f} "
-                                 f"измерение a={self.acc:+.4f} Vz={self.vz:+.3f}   ")
-                sys.stdout.flush()
+                self._progress("измерение")
             return
 
-    def _evaluate(self, a, vz):
-        # Метрика — установившаяся (терминальная) СКОРОСТЬ Vz.
-        terminal = abs(a) < self.acc_max     # вышли ли на терминал (ускорение мало)
-        sign = 1 if vz > self.vz_tol else -1 if vz < -self.vz_tol else 0
-        d = "ВСПЛЫВАЕТ" if sign > 0 else "ТОНЕТ" if sign < 0 else "НЕЙТРАЛЬ"
-        warn = "" if terminal else "  [не вышел на терминал, a велико!]"
-        sys.stdout.write(f"\r\033[K[итер {self.iter}] vol={self.vol:.4f} step={self.step:.4f}  "
-                         f"Vz_ср={vz:+.4f} м/с  a_ср={a:+.4f}  -> {d}{warn}\n")
+    def _progress(self, what):
+        if self.stage == 'DEPTH':
+            sys.stdout.write(f"\r[Г{self.iter}] vol={self.vol:.4f} step={self.step:.4f} "
+                             f"{what} Vz={self.vz:+.3f} a={self.acc:+.4f}   ")
+        else:
+            sys.stdout.write(f"\r[Д{self.trim_iter}] trim={self.trim:+.4f} step={self.trim_step:.4f} "
+                             f"{what} наклон={self.pitch_metric:+.4f}   ")
         sys.stdout.flush()
 
-        # лучший = минимум |Vz| (только среди вышедших на терминал)
-        key = abs(vz)
-        if self.best is None or key < abs(self.best[2]):
-            self.best = (self.vol, a, vz)
+    # ---------- СТАДИЯ 1: ГЛУБИНА ----------
+    def _eval_depth(self, a, vz):
+        terminal = abs(a) < self.acc_max
+        sign = 1 if vz > self.vz_tol else -1 if vz < -self.vz_tol else 0
+        d = "ВСПЛЫВ" if sign > 0 else "ТОНЕТ" if sign < 0 else "НЕЙТР"
+        warn = "" if terminal else "  [не терминал]"
+        sys.stdout.write(f"\r\033[K[Г{self.iter}] vol={self.vol:.4f} step={self.step:.4f}  "
+                         f"Vz={vz:+.4f}  a={a:+.4f}  -> {d}{warn}\n"); sys.stdout.flush()
 
+        if self.best is None or abs(vz) < abs(self.best[1]):
+            self.best = (self.vol, vz)
+        # обновляем bracket для интерполяции
+        if vz > 0:
+            self.hi = (self.vol, vz)
+        elif vz < 0:
+            self.lo = (self.vol, vz)
+
+        # сошлись по допуску
         if sign == 0 and terminal:
-            self._finish("терминальная скорость в допуске (нейтраль)"); return
-
-        # на границе и знак неправильный -> действительно недостижимо
-        if (self.vol >= 0.999 and sign < 0) or (self.vol <= 0.001 and sign > 0):
-            self._finish("НЕЙТРАЛЬ НЕДОСТИЖИМА (даже на границе объёма знак не тот)"); return
+            self._finish_depth(self.vol, "Vz в допуске"); return
+        # если есть полный bracket и шаг мал -> интерполяция корня
+        if self.lo and self.hi and self.step <= self.step_min:
+            lo_v, lo_vz = self.lo; hi_v, hi_vz = self.hi
+            root = lo_v + (0 - lo_vz) * (hi_v - lo_v) / (hi_vz - lo_vz)
+            self._finish_depth(root, "интерполяция корня"); return
 
         self.iter += 1
         if self.iter >= self.max_iter:
-            self._finish("исчерпан лимит итераций"); return
+            self._finish_depth(self.best[0], "лимит итераций"); return
 
-        # направление: всплывает (a>0) -> меньше объёма; тонет (a<0) -> больше
+        if (self.vol >= 0.999 and sign < 0) or (self.vol <= 0.001 and sign > 0):
+            self._finish_depth(self.vol, "упор в границу"); return
+
         want = -1 if sign > 0 else +1
-
-        # овершут -> уменьшаем шаг (как просил пользователь: позже, после перерегулирования)
         if self.prev_sign is not None and sign != self.prev_sign:
             self.step *= 0.5
-            sys.stdout.write(f"    \u21b3 перерегулирование: шаг -> {self.step:.4f}\n")
-            sys.stdout.flush()
         self.prev_sign = sign
+        self._set_depth(max(0.0, min(1.0, self.vol + want * self.step)))
+        self.phase = 'SETTLE'; self.t_phase = self.get_clock().now().nanoseconds / 1e9
 
-        if self.step < self.step_min:
-            self._finish("шаг меньше порога (сошлось)"); return
+    def _finish_depth(self, neutral, reason):
+        self.base = max(0.0, min(1.0, neutral))
+        sys.stdout.write("\n" + "-" * 66 + "\n")
+        sys.stdout.write(f"  СТАДИЯ 1 (ГЛУБИНА) готова [{reason}]: "
+                         f"bz_neutral = {self.base:.4f}\n")
+        sys.stdout.write(f"  Переход к СТАДИИ 2 — регулировка дифферента...\n")
+        sys.stdout.write("-" * 66 + "\n"); sys.stdout.flush()
+        # старт стадии дифферента
+        self.stage = 'TRIM'
+        self.trim = 0.0
+        self._set_trim(self.base, self.trim)
+        self.phase = 'SETTLE'; self.t_phase = self.get_clock().now().nanoseconds / 1e9
 
-        new_vol = max(0.0, min(1.0, self.vol + want * self.step))
-        self._set_volume(new_vol)
-        t = self.get_clock().now().nanoseconds / 1e9
-        self.phase = 'SETTLE'; self.t_phase = t
+    # ---------- СТАДИЯ 2: ДИФФЕРЕНТ ----------
+    def _eval_trim(self, pm):
+        cost = abs(pm)
+        sys.stdout.write(f"\r\033[K[Д{self.trim_iter}] trim={self.trim:+.4f} step={self.trim_step:.4f}  "
+                         f"наклон={pm:+.4f}  |наклон|={cost:.4f}\n"); sys.stdout.flush()
 
-    def _finish(self, reason):
-        self.phase = 'DONE'
-        vol, a, vz = self.best
-        each = vol * MAX_BALLAST_VOL
-        sys.stdout.write("\n" + "=" * 64 + "\n  РЕЗУЛЬТАТ (" + reason + ")\n" + "=" * 64 + "\n")
-        sys.stdout.write(f"  Нейтральный объём (норм. 0..1):   {vol:.4f}\n")
-        sys.stdout.write(f"  Объём на 1 бак:                   {each*1000:.3f} л\n")
-        sys.stdout.write(f"  Объём на 4 бака:                  {4*each*1000:.3f} л\n")
-        sys.stdout.write(f"  Остаточное ускорение:             {a:+.4f} м/с²\n")
-        sys.stdout.write(f"  Остаточная скорость:              {vz:+.4f} м/с\n")
-        if 'НЕДОСТИЖИМА' in reason:
-            sys.stdout.write("\n  ⚠ Балласт не может уравновесить аппарат в диапазоне баков.\n"
-                             "    Менять массу / max_volume / neutral_volume.\n")
-        else:
-            sys.stdout.write(f"\n  -> впиши в models.py:  bz_neutral = {vol:.3f}\n")
-        sys.stdout.write("=" * 64 + "\n")
-        sys.stdout.flush()
-        self._set_volume(vol)
+        if self.best_trim is None or cost < self.best_trim[1]:
+            self.best_trim = (self.trim, cost)
+
+        if cost < self.pitch_tol:
+            self._finish_trim("наклон в допуске"); return
+
+        self.trim_iter += 1
+        if self.trim_iter >= self.max_iter:
+            self._finish_trim("лимит итераций"); return
+
+        # hill-climb по |наклон|: если стало хуже — развернуться и уменьшить шаг
+        if self.prev_trim_cost is not None and cost > self.prev_trim_cost:
+            self.trim_dir *= -1
+            self.trim_step *= 0.5
+        self.prev_trim_cost = cost
+
+        if self.trim_step < self.trim_step_min:
+            self._finish_trim("шаг дифферента мал (сошлось)"); return
+
+        self.trim = max(-0.5, min(0.5, self.trim + self.trim_dir * self.trim_step))
+        self._set_trim(self.base, self.trim)
+        self.phase = 'SETTLE'; self.t_phase = self.get_clock().now().nanoseconds / 1e9
+
+    def _finish_trim(self, reason):
+        self.stage = 'DONE'
+        trim, cost = self.best_trim
+        bow = self.base + trim; stern = self.base - trim
+        sys.stdout.write("\n" + "=" * 66 + "\n  ИТОГ КАЛИБРОВКИ\n" + "=" * 66 + "\n")
+        sys.stdout.write(f"  Нейтраль (база):     bz_neutral = {self.base:.4f}\n")
+        sys.stdout.write(f"  Дифферент (trim):    {trim:+.4f}   [{reason}]\n")
+        sys.stdout.write(f"  -> носовые баки (1,2):  {bow:.4f}  ({bow*MAX_BALLAST_VOL*1000:.2f} л)\n")
+        sys.stdout.write(f"  -> кормовые баки(3,4):  {stern:.4f}  ({stern*MAX_BALLAST_VOL*1000:.2f} л)\n")
+        sys.stdout.write(f"  Остаточный наклон:   {cost:.4f}\n")
+        sys.stdout.write("\n  Впиши в models.py:  bz_neutral = %.3f  (и trim для диффер.) \n" % self.base)
+        sys.stdout.write("=" * 66 + "\n"); sys.stdout.flush()
+        self._set_trim(self.base, trim)
         raise SystemExit
 
 
 def main():
     rclpy.init()
-    node = BallastNeutralFinder()
+    node = BallastCalib()
     try:
         rclpy.spin(node)
     except (KeyboardInterrupt, SystemExit):
