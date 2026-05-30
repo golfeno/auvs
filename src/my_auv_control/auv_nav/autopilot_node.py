@@ -179,15 +179,20 @@ class AUVAutopilotNode(Node):
         # (канал глубины зеркальный, канал крена сонаправленный)
         self.pub_hfl.publish(Float64(data=cmd.hfl))
         self.pub_hfr.publish(Float64(data=cmd.hfr))
+        # Баки: нос (1,2) = base+trim, корма (3,4) = base-trim (статич. дифферент из калибровки)
         if self.dm in (DepthMode.BALLAST, DepthMode.BOTH):
-            for pub in self.pub_b:
-                pub.publish(Float64(data=cmd.ballast_volume * Phys.MAX_BALLAST_VOL))
+            base = cmd.ballast_volume
         else:
-            # РЕЖИМ РУЛЕЙ: балласт не управляется. После догрузки +0.7кг аппарат
-            # при пустых баках слабо ТОНЕТ — заливаем фикс. объём, чтобы вернуть
-            # слабую положит. плавучесть (как было), иначе он погружается сам.
-            for pub in self.pub_b:
-                pub.publish(Float64(data=Phys.RUDDER_TRIM_VOL * Phys.MAX_BALLAST_VOL))
+            # РЕЖИМ РУЛЕЙ: балласт держит нейтраль (иначе аппарат сам всплывал/тонул)
+            base = Phys.RUDDER_TRIM_VOL
+        tr = Phys.BALLAST_TRIM
+        bow = max(0.0, min(1.0, base + tr)) * Phys.MAX_BALLAST_VOL
+        stern = max(0.0, min(1.0, base - tr)) * Phys.MAX_BALLAST_VOL
+        # pub_b[0],[1] = ballast_1,2 (нос);  pub_b[2],[3] = ballast_3,4 (корма)
+        self.pub_b[0].publish(Float64(data=bow))
+        self.pub_b[1].publish(Float64(data=bow))
+        self.pub_b[2].publish(Float64(data=stern))
+        self.pub_b[3].publish(Float64(data=stern))
 
 
 def load_waypoints(filepath):
