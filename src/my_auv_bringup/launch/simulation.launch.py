@@ -74,8 +74,21 @@ def generate_launch_description():
         name='virtual_barometer', output='screen'
     )
 
-    # Позы сенсоров публикует сам gz (PosePublisher -> bridge -> /tf_static).
-    # Меняешь <pose> сенсора в SDF -> RViz подхватывает автоматически (после пересборки).
+    # СТАТИЧ. TF кадров сенсоров относительно корпуса (для отрисовки сканов в RViz).
+    # ВАЖНО: значения --x/--y/--z/--pitch ДОЛЖНЫ совпадать с <pose> сенсора в SDF.
+    # Двигаем поочерёдно по одной оси здесь И в SDF одинаково.
+    tf_sonar = Node(
+        package='tf2_ros', executable='static_transform_publisher', output='log',
+        arguments=['--x', '0', '--y', '0', '--z', '0',
+                   '--roll', '0', '--pitch', '0', '--yaw', '0',
+                   '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/sonar_sensor']
+    )
+    tf_alt = Node(
+        package='tf2_ros', executable='static_transform_publisher', output='log',
+        arguments=['--x', '0', '--y', '0', '--z', '0',
+                   '--roll', '0', '--pitch', '0', '--yaw', '0',
+                   '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/altimeter_sensor']
+    )
 
     # --- RViz2 (визуализация сонара/альтиметра/одометрии) ---
     rviz = Node(
@@ -85,5 +98,5 @@ def generate_launch_description():
     )
 
     return LaunchDescription([
-        declare_rviz, gz_sim, spawn, bridge, fake_baro, rviz,
+        declare_rviz, gz_sim, spawn, bridge, fake_baro, tf_sonar, tf_alt, rviz,
     ])
