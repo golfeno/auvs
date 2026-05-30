@@ -72,7 +72,7 @@ def generate_launch_description():
     # TF совпадают с <pose> сенсоров в SDF (звено body повёрнуто +90° по Y).
     tf_sonar = Node(
         package='tf2_ros', executable='static_transform_publisher', output='log',
-        arguments=['--x', '0.8', '--y', '0', '--z', '0', '--roll', '0', '--pitch', '0', '--yaw', '0', '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/sonar_sensor']
+        arguments=['--x', '0.75', '--y', '0', '--z', '0', '--roll', '0', '--pitch', '0', '--yaw', '0', '--frame-id', 'submarine/body', '--child-frame-id', 'submarine/body/sonar_sensor']
     )
     tf_alt = Node(
         package='tf2_ros', executable='static_transform_publisher', output='log',

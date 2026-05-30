@@ -43,40 +43,38 @@ class Telemetry:
         ro, po, yo = (math.degrees(a) for a in s.rpy_odo)
         src = "KALMAN" if s.imu_ok else "ODO"
 
+        # Режим обхода: NORMAL / AVOID-L/R/U/D / WALL_FOLLOW
+        am = getattr(s, 'avoid_mode', 'NORMAL')
+        avoid = '' if am == 'NORMAL' else f"[ОБХОД:{am}] "
+
+        son = f"{s.sonar_fwd:.1f}м" if (s.sonar_ok and s.sonar_fwd >= 0) else "чисто"
+        alt = f"{s.alt_floor:.1f}м" if s.alt_floor >= 0 else "--"
+        dl = getattr(self, 'depth_label', '')   # режим глубины (ставит autopilot)
+
         line = (
-            f"\r\033[K"
-            f"WP {wp_idx+1}/{tw} {ru:<10s} "
+            f"WP {wp_idx+1}/{tw} {ru:<9s} "
             f"X:{s.pos[0]:+6.1f} Y:{s.pos[1]:+6.1f} Z:{s.pos[2]:+5.2f} "
             f"V:{s.vel:+.2f} Vz:{s.dz_dt:+.2f} "
-            f"D:{s.dist_2d:4.1f}m dZ:{s.z_err:+.2f} "
-            f"RPY[{src}]:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}°"
+            f"D:{s.dist_2d:4.1f}м dZ:{s.z_err:+.2f} "
+            f"{avoid}"
+            f"RPY:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}° Сонар:{son}"
         )
 
+        if dl:
+            line += f" | {dl}"
         if cmd is not None:
             rv = math.degrees(getattr(cmd, 'rv', 0.0))
-            rvt = math.degrees(getattr(cmd, 'rvt', 0.0))
             hl = math.degrees(getattr(cmd, 'hl', 0.0))
             hr = math.degrees(getattr(cmd, 'hr', 0.0))
-            line += f" | руль вертик.низ:{rv:+.0f}° верх:{rvt:+.0f}° гориз L/R:{hl:+.0f}/{hr:+.0f}°"
+            line += f" | руль в:{rv:+.0f}° гор:{hl:+.0f}/{hr:+.0f}°"
             if hasattr(cmd, 'ballast_volume') and cmd.ballast_volume != 0.5:
                 line += f" B:{cmd.ballast_volume:.0%}"
 
-        sys.stdout.write(line)
-
-        # Вторая строка с разбивкой по источникам (реже, чтобы не засорять)
-        if t - getattr(self, '_t_src', 0.0) >= 1.0:
-            self._t_src = t
-            mh = math.degrees(s.mag_heading) if s.mag_ok else float('nan')
-            alt = f"{s.alt_floor:.1f}m" if s.alt_floor >= 0 else "--"
-            son = f"{s.sonar_fwd:.1f}m" if (s.sonar_ok and s.sonar_fwd >= 0) else "чисто"
-            sys.stdout.write(
-                f"\n    └─ R/P/Y°  IMU:{ri:+.0f}/{pi_:+.0f}/{yi:+.0f}  "
-                f"ODO:{ro:+.0f}/{po:+.0f}/{yo:+.0f}  "
-                f"KALMAN:{rd:+.0f}/{pd:+.0f}/{yd:+.0f}  "
-                f"| Mag:{mh:+.0f}°  Дно:{alt}  Сонар:{son}\n"
-            )
+        # ОДНА перезаписываемая строка: \r в начало + \033[K очистка хвоста,
+        # БЕЗ переноса -> новая публикация НЕ создаёт новую строку.
+        sys.stdout.write("\r\033[K" + line)
         sys.stdout.flush()
 
     def log_wp(self, wi):
-        sys.stdout.write("\n  ✓ Точка " + str(wi))
+        sys.stdout.write("\n  ✓ Точка " + str(wi) + "\n")
         sys.stdout.flush()

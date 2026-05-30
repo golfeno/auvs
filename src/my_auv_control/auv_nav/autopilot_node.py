@@ -8,6 +8,7 @@ from visualization_msgs.msg import Marker, MarkerArray
 from .models import MotorMode, DepthMode, ActuatorCommands, Phys
 from .sensor_fusion import SensorFusion
 from .phase_manager import PhaseManager
+from .guidance import LOSGuidance
 from .heading import HeadingController
 from .depth_rudder import DepthRudderController
 from .depth_ballast import DepthBallastController
@@ -23,12 +24,18 @@ class AUVAutopilotNode(Node):
         self.mm = mm; self.dm = dm; self.tw = len(wps)
         self.pm = PhaseManager(wps, mm, dm)
         self.sf = SensorFusion(self)
+        self.los = LOSGuidance()
         self.heading = HeadingController()
         self.depth_r = DepthRudderController()
         self.depth_b = DepthBallastController()
         self.roll = RollController()
         self.obstacle = ObstacleAvoidance()
         self.tl = Telemetry(self)
+        # подпись режима глубины для одной строки телеметрии
+        _dl = {DepthMode.RUDDER: 'Глубина:РУЛИ',
+               DepthMode.BALLAST: 'Глубина:БАКИ',
+               DepthMode.BOTH: 'Глубина:БАКИ+РУЛИ'}
+        self.tl.depth_label = _dl.get(dm, '')
 
         self.pub_lt   = self.create_publisher(Float64, '/model/submarine/joint/left_propeller_joint/cmd_force', 10)
         self.pub_rt   = self.create_publisher(Float64, '/model/submarine/joint/right_propeller_joint/cmd_force', 10)
@@ -48,15 +55,36 @@ class AUVAutopilotNode(Node):
         self.pub_markers = self.create_publisher(MarkerArray, '/auv/waypoints', 10)
         self.marker_timer = self.create_timer(0.5, self._pub_markers)
 
+        # ДЕМО-режим: расписание режима глубины по сегментам маршрута.
+        # depth_schedule[i] = DepthMode для участка к точке (i+1). Если None —
+        # используем общий self.dm (обычный режим). Ставится извне (demo-файлом).
+        self.depth_schedule = None
+
         self._b = 0.0
         self.timer = self.create_timer(Phys.DT, self._loop)
         t0 = self.get_clock().now().nanoseconds / 1e9
         self.pm.init_wp(t0, [0.0, 0.0, 0.0])
 
+    def _apply_segment_depth(self):
+        """ДЕМО: переключить режим глубины по текущему сегменту маршрута."""
+        if not self.depth_schedule:
+            return
+        i = self.pm.wp_idx
+        if 0 <= i < len(self.depth_schedule):
+            dm = self.depth_schedule[i]
+            if dm != self.dm:
+                self.dm = dm
+                _dl = {DepthMode.RUDDER: 'Глубина:РУЛИ',
+                       DepthMode.BALLAST: 'Глубина:БАКИ',
+                       DepthMode.BOTH: 'Глубина:БАКИ+РУЛИ'}
+                self.tl.depth_label = _dl.get(dm, '') + ' (демо)'
+
     def _loop(self):
         # v53.0
         if self.pm.state == 'FINISH':
             return
+
+        self._apply_segment_depth()
 
         t = self.get_clock().now().nanoseconds / 1e9
 
@@ -67,11 +95,15 @@ class AUVAutopilotNode(Node):
         s = self.sf.state
         prev_ph = self.pm.state
         ph = self.pm.evaluate(s, t)
-        tp = self.pm.params(s)
         if ph != prev_ph:
             import sys as _sys
             _sys.stdout.write(f"\n>>> ФАЗА: {prev_ph} -> {ph}  (d2d={s.dist_2d:.2f} z_err={s.z_err:+.2f} yaw_err={s.yaw_err:+.2f})\n")
             _sys.stdout.flush()
+
+        # ── НАВЕДЕНИЕ НА ТОЧКУ (pure pursuit) ──
+        # LOS-наведение по прямой ОТКАЧЕНО: наведение прямо на точку (bearing).
+        self.los.set_segment(self.pm.seg_start, self.pm.target)
+        s.cross_track = 0.0
 
         # Reset on phase change
         if self.pm.need_pid_reset:
@@ -83,12 +115,20 @@ class AUVAutopilotNode(Node):
             self._b = 0.0
             self.pm.need_pid_reset = False
 
-        # ── Obstacle avoidance (не в HOVER / FINISH) ──
+        # ── Обход препятствий (v91: простой gap-follower, БЕЗ FSM/override) ──
+        # Поправка курса/глубины СНАЧАЛА (до params), чтобы дифференциал движков
+        # в params() реагировал на манёвр обхода. yaw_offset просто СКЛАДЫВАЕТСЯ
+        # с наведением на цель — закон один, без «перехвата».
         av = None
+        s.avoid_mode = 'NORMAL'
         if ph not in ('HOVER_STAB', 'FINISH'):
             av = self.obstacle.compute(s.sonar_ranges, s.dist_2d, Phys.DT)
             s.yaw_err += av.yaw_offset
             s.z_err += av.z_offset
+            s.avoid_mode = av.mode
+
+        # params ПОСЛЕ обхода — bs/yd реагируют на манёвр обхода.
+        tp = self.pm.params(s)
 
         cmd = ActuatorCommands()
 
@@ -109,12 +149,10 @@ class AUVAutopilotNode(Node):
         d = sl * Phys.DT
         tgt = tp.get('bs', 0.0)
 
-        # Обход: тормозим при приближении к препятствию
+        # Обход: плавно снижаем ход у препятствия (speed_factor НИКОГДА не 0 ->
+        # аппарат не встаёт и не крутится на месте, сонар смотрит вперёд).
         if av and av.obstacle_near:
-            if av.emergency:
-                tgt = max(0.0, -3.0 * s.vel)     # реверс — активное торможение
-            else:
-                tgt *= av.speed_factor            # плавное замедление
+            tgt *= av.speed_factor
 
         self._b = self._b + max(-d, min(d, tgt - self._b))
 

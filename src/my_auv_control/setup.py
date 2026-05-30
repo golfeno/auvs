@@ -22,6 +22,7 @@ setup(
     entry_points={
         'console_scripts': [
             'autopilot         = auv_nav.autopilot_node:main',
+            'autopilot_demo    = auv_nav.autopilot_demo:main',
             'autopilot49       = my_auv_control.auv_pid_nav:main',
             'fake_barometer    = my_auv_control.fake_barometer:main',
             'mixer             = my_auv_control.auv_control_mixer:main',

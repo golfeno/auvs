@@ -33,9 +33,12 @@
         <always_on>1</always_on><update_rate>50</update_rate>
         <topic>/sub_press</topic>
       </sensor>
-      <!-- ===== СОНАР — маркер позиции (визуал, без коллизии) ===== -->
+      <!-- ===== СОНАР — маркер позиции (визуал, без коллизии) =====
+           Тело повёрнуто +90° по Y, поэтому «вперёд/нос» = локальная ось Z.
+           Сфера на носу, центр чуть за плоскостью носа (0.75) -> половина шарика
+           выглядывает наружу из носа аппарата. -->
       <visual name="sonar_marker">
-        <pose>0.8 0 0 0 0 0</pose>
+        <pose>0 0 0.75 0 0 0</pose>
         <geometry><sphere><radius>0.06</radius></sphere></geometry>
         <material><ambient>1.0 0.1 0.8 1</ambient><diffuse>1.0 0.1 0.8 1</diffuse><specular>1.0 0.1 0.8 1</specular></material>
       </visual>
@@ -58,7 +61,11 @@
       </sensor>
       <!-- ===== СОНАР: эхолот ВПЕРЁД (препятствия) ===== -->
       <sensor name="sonar_sensor" type="gpu_lidar">
-        <pose>0.8 0 0 0 -1.5707963 0</pose>
+        <!-- Тело повёрнуто +90° по Y: forward(world +X) = body-local Z.
+             Сенсор В ПЛОСКОСТИ носа (local Z=0.75), pitch=-90 -> луч вперёд
+             (ось скана local X сенсора -> body Z). Раньше pos 0.8 0 0 = 0.8 м
+             ПОД корпусом (local X = world -Z), а не на носу. -->
+        <pose>0 0 0.75 0 -1.5707963 0</pose>
         <always_on>1</always_on><update_rate>10</update_rate>
         <topic>/model/submarine/sonar</topic>
         <gz_frame_id>submarine/body/sonar_sensor</gz_frame_id>

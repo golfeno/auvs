@@ -21,7 +21,8 @@ class HeadingController:
             tgt = P.Kp_yaw * s.yaw_err + P.Kd_yaw * s.yaw_d
             if s.roll_abs > 0.18 and phase == 'XY_FINAL':
                 tgt *= 0.35
-            tgt = max(-0.5, min(0.5, tgt))
+            # Руль активнее в круизе: разрешаем почти полное отклонение (±45° = ±0.785).
+            tgt = max(-P.rud_max, min(P.rud_max, tgt))
         self._rv = self._sl(self._rv, tgt, L.rud_spd, dt)
         return self._rv
 
