@@ -41,7 +41,6 @@ def generate_launch_description():
             # Позы звеньев и СЕНСОРОВ (PosePublisher, static_publisher=false -> всё в /pose -> /tf,
             # чтобы обойти QoS-несовместимость /tf_static у моста)
             '/model/submarine/pose@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
-            '/model/submarine/pose_static@tf2_msgs/msg/TFMessage@gz.msgs.Pose_V',
             '/model/submarine/imu@sensor_msgs/msg/Imu@gz.msgs.IMU',
             '/model/submarine/magnetometer@sensor_msgs/msg/MagneticField@gz.msgs.Magnetometer',
             '/model/submarine/altimeter@sensor_msgs/msg/LaserScan@gz.msgs.LaserScan',
@@ -64,7 +63,6 @@ def generate_launch_description():
         remappings=[
             ('/model/submarine/tf', '/tf'),
             ('/model/submarine/pose', '/tf'),
-            ('/model/submarine/pose_static', '/tf_static'),
         ],
         output='screen'
     )
