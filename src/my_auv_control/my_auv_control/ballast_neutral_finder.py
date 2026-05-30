@@ -38,7 +38,7 @@ class BallastCalib(Node):
     def __init__(self):
         super().__init__('ballast_calibration')
 
-        self.declare_parameter('settle_time', 20.0)
+        self.declare_parameter('settle_time', 30.0)  # медленный насос (0.001 м3/с): бак 15л за 15с + терминал
         self.declare_parameter('measure_time', 6.0)
         self.declare_parameter('vz_tol', 0.01)
         self.declare_parameter('acc_max', 0.01)
