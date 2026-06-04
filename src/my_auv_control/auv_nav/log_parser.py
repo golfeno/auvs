@@ -165,17 +165,27 @@ def plot_data(data, out_dir="graphs", world_path=None):
         print("Данные не найдены!")
         return
 
+    # --- ОТСЧЕТ С 5-го ТИКА ---
+    # Обрезаем все списки данных, чтобы убрать начальные переходные процессы
+    for key in data:
+        if isinstance(data[key], list):
+            data[key] = data[key][5:]
+
     os.makedirs(out_dir, exist_ok=True)
     time = data['time']
     phases = data['phase']
 
+    if not time:
+        print("Недостаточно данных для построения графиков (менее 5 тиков).")
+        return
+
     print(f"Построение графиков в папку '{os.path.abspath(out_dir)}'...")
 
     # --- 1. 3D Траектория ---
-    fig = plt.figure(figsize=(10, 8))
+    fig = plt.figure(figsize=(12, 10))
     ax3d = fig.add_subplot(111, projection='3d')
     
-    ax3d.plot(data['x'], data['y'], data['z'], color='gray', alpha=0.5, zorder=1)
+    ax3d.plot(data['x'], data['y'], data['z'], color='gray', alpha=0.5, zorder=1, label='Путь')
     
     for phase_name in set(phases):
         idx = [i for i, p in enumerate(phases) if p == phase_name]
@@ -185,18 +195,49 @@ def plot_data(data, out_dir="graphs", world_path=None):
         ax3d.scatter(x_p, y_p, z_p, color=PHASE_COLORS.get(phase_name, '#000000'), 
                    label=f"Фаза: {phase_name}", zorder=2, s=15)
                    
-    # Поиск целей
-    targets_x = []
-    targets_y = []
-    targets_z = []
-    # Заданные путевые точки (Ground truth из маршрута)
-    # Так как в самом логе точных координат целей нет (только расстояние D), используем известные
-    targets_x = [30.0, 30.0, 15.0]
-    targets_y = [0.0, 12.0, 12.0]
-    targets_z = [-3.0, -7.0, 2.0]
+    # Обновленные цели для основного сценария ВКР
+    targets_x = [30.0, 30.0, 0.0]
+    targets_y = [0.0, 22.0, 0.0]
+    targets_z = [-3.0, -7.0, 5.0]
     
     ax3d.scatter(targets_x, targets_y, targets_z, marker='*', s=300, color='gold', edgecolors='black', label='Цели (Waypoints)', zorder=3)
     
+    # Добавляем порядковые номера точек
+    for i in range(len(targets_x)):
+        ax3d.text(targets_x[i], targets_y[i], targets_z[i] + 0.5, str(i+1), 
+                  fontsize=12, fontweight='bold', color='black', zorder=4)
+    
+    # --- ОТОБРАЖЕНИЕ ОБЪЕКТОВ ИЗ МИРА ---
+    if world_path:
+        obstacles = parse_world(world_path)
+        # Считаем границы траектории, чтобы фильтровать далекие объекты
+        min_x, max_x = min(data['x']), max(data['x'])
+        min_y, max_y = min(data['y']), max(data['y'])
+        margin = 20.0 # Показываем объекты в радиусе 20м от пути
+        
+        for obj in obstacles:
+            # Фильтруем: рисуем только те, что рядом с путем
+            if not (min_x - margin <= obj['x'] <= max_x + margin and 
+                    min_y - margin <= obj['y'] <= max_y + margin):
+                continue
+
+            color = 'red' if 'demo' in obj['name'] or 'test' in obj['name'] else 'gray'
+            alpha = 0.6 if 'demo' in obj['name'] or 'test' in obj['name'] else 0.3
+            
+            if obj['type'] == 'circle':
+                # Рисуем круг (как набор точек)
+                import numpy as np
+                theta = np.linspace(0, 2*np.pi, 20)
+                cx = obj['x'] + obj['r'] * np.cos(theta)
+                cy = obj['y'] + obj['r'] * np.sin(theta)
+                ax3d.plot(cx, cy, 0, color=color, alpha=alpha, linewidth=2)
+            elif obj['type'] == 'box':
+                # Рисуем контур прямоугольника
+                sx, sy = obj.get('sx', 1.0)/2, obj.get('sy', 1.0)/2
+                bx = [obj['x']-sx, obj['x']+sx, obj['x']+sx, obj['x']-sx, obj['x']-sx]
+                by = [obj['y']-sy, obj['y']-sy, obj['y']+sy, obj['y']+sy, obj['y']-sy]
+                ax3d.plot(bx, by, 0, color=color, alpha=alpha, linewidth=2)
+                
     coord_lines = ["Координаты целей (X, Y, Z):"]
     for i in range(len(targets_x)):
         coord_lines.append(f"{i+1}: ({targets_x[i]}, {targets_y[i]}, {targets_z[i]})")
@@ -204,20 +245,13 @@ def plot_data(data, out_dir="graphs", world_path=None):
     ax3d.text2D(0.02, 0.05, "\n".join(coord_lines), transform=ax3d.transAxes, fontsize=10,
             bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.8))
 
-    ax3d.set_title('3D Траектория аппарата с отмеченными целями')
+    ax3d.set_title('3D Траектория аппарата (Спиральный подъем)')
     ax3d.set_xlabel('Ось X (м)')
     ax3d.set_ylabel('Ось Y (м)')
     ax3d.set_zlabel('Ось Z (м)')
     
-    # Опускаем угол обзора: elev=15 (высота камеры), azim=45 (поворот)
     ax3d.view_init(elev=20, azim=45)
     ax3d.set_box_aspect(aspect=(1, 1, 0.7))
-    
-    # Инвертируем ось Z на 3D графике, чтобы глубина (минусы) была внизу, а плюсы наверху
-    # В matplotlib Z обычно растет вверх. Если Z отрицательные (глубина), они и так будут внизу.
-    # Но чтобы было логичнее, явно зададим пределы.
-    # z_min, z_max = min(data['z']), max(data['z'])
-    # ax3d.set_zlim(min(-10, z_min), max(5, z_max))
     
     ax3d.legend(loc='upper right', bbox_to_anchor=(1.2, 1.0))
     plt.tight_layout(pad=3.0)

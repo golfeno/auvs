@@ -14,6 +14,15 @@ class Telemetry:
         self._t = 0.0
         self._pv = 0.0; self._pz = 0.0
         self._ax = 0.0; self._az = 0.0
+        
+        # --- Автоматическая запись лога в файл ---
+        import os
+        self.log_dir = "results"
+        os.makedirs(self.log_dir, exist_ok=True)
+        # Файл теперь всегда называется log_p.log и перезаписывается при старте
+        self.log_file_path = os.path.join(self.log_dir, "log_p.log")
+        self.log_file = open(self.log_file_path, 'w', encoding='utf-8')
+        print(f"\n[Telemetry] Лог миссии перезаписывается в: {self.log_file_path}")
 
     def analytics(self, s, phase, wp_idx):
         try:
@@ -89,7 +98,15 @@ class Telemetry:
         # БЕЗ переноса -> новая публикация НЕ создаёт новую строку.
         sys.stdout.write("\r\033[K" + line)
         sys.stdout.flush()
+        
+        # ЗАПИСЬ В ФАЙЛ: пишем строку с переносом \n, чтобы парсер мог её прочитать
+        self.log_file.write(line + "\n")
+        self.log_file.flush()
 
     def log_wp(self, wi):
-        sys.stdout.write("\n  ✓ Точка " + str(wi) + "\n")
+        msg = f"\n  ✓ Точка {wi}\n"
+        sys.stdout.write(msg)
         sys.stdout.flush()
+        # Также записываем достижение точки в лог-файл
+        self.log_file.write(msg)
+        self.log_file.flush()
