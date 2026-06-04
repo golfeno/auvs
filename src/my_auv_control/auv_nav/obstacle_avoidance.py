@@ -61,9 +61,9 @@ class ObstacleAvoidance:
     SECTOR_SIGN = -1.0         # знак угла сектора (инвертирован: оси сенсора повёрнуты
                                # из-за body +90° по Y; при +1.0 рулил В объект -> уперся в центр)
 
-    AVOID_RANGE = 12.0         # м — порог входа по умолчанию (маршевые фазы)
-    AVOID_RANGE_FAR = 12.0     # м — дальние фазы (круиз NAV, коридор Z_CORRIDOR)
-    AVOID_RANGE_NEAR = 5.0     # м — ближние фазы (Z_STAB / APPROACH / HOVER_STAB)
+    AVOID_RANGE = 5.0         # м — порог входа по умолчанию (маршевые фазы)
+    AVOID_RANGE_FAR = 50.0     # м — дальние фазы (круиз NAV, коридор Z_CORRIDOR)
+    AVOID_RANGE_NEAR = 3.0     # м — ближние фазы (Z_STAB / APPROACH / HOVER_STAB)
     DETECT = 12.0              # м — шкала «близости»: на этой дист. prox=0, у носа=1
     INFLATE = 3                # ширина ядра раздувания (секторов, ~радиус аппарата)
 

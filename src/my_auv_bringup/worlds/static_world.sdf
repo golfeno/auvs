@@ -43,6 +43,10 @@
     <!-- СТЕНА поперёк пути WP1(30,0)->WP2(30,12): тянется по X 24..36 на y=6.
          КОНЕЧНАЯ длина (12 м) -> аппарат упирается, разворот 90°, идёт ВДОЛЬ
          стены до её КОНЦА (x=24 или x=36), огибает и выходит к точке. -->
-    <model name="demo_wall"><static>true</static><pose>30.0 6.0 -3.0 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>12.0 0.6 5.0</size></box></geometry><material><ambient>0.45 0.45 0.5 1</ambient><diffuse>0.45 0.45 0.5 1</diffuse></material></visual><collision name="collision"><geometry><box><size>12.0 0.6 5.0</size></box></geometry></collision></link></model>
+    <model name="demo_wall"><static>true</static><pose>30.0 16.0 -3.0 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>12.0 0.6 5.0</size></box></geometry><material><ambient>0.45 0.45 0.5 1</ambient><diffuse>0.45 0.45 0.5 1</diffuse></material></visual><collision name="collision"><geometry><box><size>12.0 0.6 5.0</size></box></geometry></collision></link></model>
+     <!-- ===== Доп. блок на 3-м сегменте WP2(30,12,-7)->WP3(15,12,2) ===== -->
+    <!-- Цилиндр на (22,12,-5): проверка обхода при смене глубины. -->
+    <model name="test_block2"><static>true</static><pose>22.0 12.0 -5.0 0 0 0</pose><link name="link"><visual name="visual"><geometry><cylinder><radius>1.5</radius><length>6.0</length></cylinder></geometry><material><ambient>0.2 0.6 0.9 1</ambient><diffuse>0.2 0.6 0.9 1</diffuse></material></visual><collision name="collision"><geometry><cylinder><radius>1.5</radius><length>6.0</length></cylinder></geometry></collision></link></model>
+
   </world>
 </sdf>

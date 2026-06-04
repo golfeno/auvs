@@ -97,7 +97,7 @@ class PhaseManager:
                     # ── REROUTE: новая прямая от ТЕКУЩЕЙ позиции к цели ──
                     # Иначе LOS тянул бы обратно на исходную линию A→B, которая
                     # проходит сквозь обойдённое препятствие.
-                    self.seg_start = list(s.pos)
+                    #self.seg_start = list(s.pos)
                     return self.state
             else:
                 self._avoid_clear = 0.0

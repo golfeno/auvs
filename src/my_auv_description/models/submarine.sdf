@@ -10,21 +10,44 @@
         <pose>0.2 0 0 0 0 0</pose>
         <mass>122.7</mass>
         <inertia>
-          <ixx>1.64</ixx><iyy>18.33</iyy><izz>18.33</izz>
+          <ixx>18.64</ixx><iyy>18.33</iyy><izz>18.33</izz>
           <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
         </inertia>
         <fluid_added_mass>
-          <xx>5.8</xx><yy>116.0</yy><zz>116.0</zz>
+          <xx>115.8</xx><yy>116.0</yy><zz>116.0</zz>
           <pp>0.7</pp><qq>3.7</qq><rr>3.7</rr>
         </fluid_added_mass>
       </inertial>
       <visual name="body_visual">
-        <geometry><cylinder><radius>0.17</radius><length>1.5</length></cylinder></geometry>
+        <geometry><capsule><radius>0.17</radius><length>1.5</length></capsule></geometry>
         <material><ambient>0.15 0.45 0.75 1</ambient><diffuse>0.15 0.45 0.75 1</diffuse><specular>0.15 0.45 0.75 1</specular></material>
       </visual>
       <collision name="body_collision">
         <geometry><cylinder><radius>0.17</radius><length>1.5</length></cylinder></geometry>
       </collision>
+
+      <visual name="le"><pose>0 0.29 -0.12 0 0 0</pose><geometry>
+        
+        <mesh>
+          <!-- Указываем абсолютный путь к вашему файлу -->
+          <uri>file:///home/golfe/auv/src/my_auv_description/models/meshes/bubl.stl</uri>
+          <!-- Масштаб модели (если она сделана в миллиметрах, укажите 0.001 0.001 0.001) -->
+          <scale>0.0082 0.0082 0.012</scale>
+        </mesh>
+        </geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material>
+      </visual>    
+
+    <visual name="ri"><pose>0 -0.29 -0.12 0 0 0</pose><geometry>
+      
+      <mesh>
+        <!-- Указываем абсолютный путь к вашему файлу -->
+        <uri>file:///home/golfe/auv/src/my_auv_description/models/meshes/bubl.stl</uri>
+        <!-- Масштаб модели (если она сделана в миллиметрах, укажите 0.001 0.001 0.001) -->
+        <scale>0.0082 0.0082 0.012</scale>
+      </mesh>
+    </geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual>
+
+
       <sensor name="imu_sensor" type="imu">
         <always_on>1</always_on><update_rate>100</update_rate>
         <topic>/model/submarine/imu</topic>
@@ -33,15 +56,17 @@
         <always_on>1</always_on><update_rate>50</update_rate>
         <topic>/sub_press</topic>
       </sensor>
-      <!-- ===== СОНАР — маркер позиции (визуал, без коллизии) =====
-           Тело повёрнуто +90° по Y, поэтому «вперёд/нос» = локальная ось Z.
-           Сфера на носу, центр чуть за плоскостью носа (0.75) -> половина шарика
-           выглядывает наружу из носа аппарата. -->
+
+
+
+
       <visual name="sonar_marker">
         <pose>0 0 0.75 0 0 0</pose>
         <geometry><sphere><radius>0.06</radius></sphere></geometry>
         <material><ambient>1.0 0.1 0.8 1</ambient><diffuse>1.0 0.1 0.8 1</diffuse><specular>1.0 0.1 0.8 1</specular></material>
       </visual>
+
+
 
       <!-- ===== МАГНИТОМЕТР (абсолютный курс) ===== -->
       <sensor name="mag_sensor" type="magnetometer">
@@ -61,10 +86,7 @@
       </sensor>
       <!-- ===== СОНАР: эхолот ВПЕРЁД (препятствия) ===== -->
       <sensor name="sonar_sensor" type="gpu_lidar">
-        <!-- Тело повёрнуто +90° по Y: forward(world +X) = body-local Z.
-             Сенсор В ПЛОСКОСТИ носа (local Z=0.75), pitch=-90 -> луч вперёд
-             (ось скана local X сенсора -> body Z). Раньше pos 0.8 0 0 = 0.8 м
-             ПОД корпусом (local X = world -Z), а не на носу. -->
+
         <pose>0 0 0.75 0 -1.5707963 0</pose>
         <always_on>1</always_on><update_rate>10</update_rate>
         <topic>/model/submarine/sonar</topic>
@@ -76,14 +98,14 @@
             <vertical><samples>16</samples><resolution>1</resolution>
               <min_angle>-0.5235987756</min_angle><max_angle>0.5235987756</max_angle></vertical>
           </scan>
-          <range><min>0.5</min><max>50.0</max><resolution>0.01</resolution></range>
+          <range><min>0.5</min><max>20.0</max><resolution>0.01</resolution></range>
         </lidar>
       </sensor>
     </link>
 
     <!-- ===== ЛЕВЫЙ ПРОПЕЛЛЕР ===== -->
     <link name="left_propeller">
-      <pose>0 0.2833333 0 0 1.5708 0</pose>
+      <pose>0 0.29 0 0 1.5708 0</pose>
       <inertial>
         <mass>0.101</mass>
         <inertia><ixx>0.0000592</ixx><iyy>0.0000592</iyy><izz>0.000117</izz>
@@ -116,7 +138,7 @@
 
     <!-- ===== ПРАВЫЙ ПРОПЕЛЛЕР ===== -->
     <link name="right_propeller">
-      <pose>0 -0.2833333 0 0 1.5708 0</pose>
+      <pose>0 -0.29 0 0 1.5708 0</pose>
       <inertial><mass>0.101</mass><inertia><ixx>0.0000592</ixx><iyy>0.0000592</iyy><izz>0.000117</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>
       <visual name="rp_cyl"><geometry><cylinder><radius>0.0333</radius><length>0.03</length></cylinder></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
       <visual name="rp_b1"><pose>0.057 0 0 0.349066 0 0</pose><geometry><box><size>0.1 0.05 0.01</size></box></geometry><material><ambient>0.95 0.85 0.10 1</ambient><diffuse>0.95 0.85 0.10 1</diffuse><specular>0.95 0.85 0.10 1</specular></material></visual>
@@ -223,7 +245,7 @@
 
     <!-- Вертикальный руль -->
     <link name="vertical_rudder">
-      <pose>-0.75 0 -0.27 1.5708 1.5708 0</pose>
+      <pose>-0.8 0 -0.15 1.5708 1.5708 0</pose>
       <inertial>
         <mass>0.02315</mass>
         <inertia><ixx>0.00000129</ixx><iyy>0.00000129</iyy><izz>0.00000129</izz>
@@ -239,6 +261,7 @@
     </link>
     <joint name="vertical_rudder_joint" type="revolute">
       <parent>body</parent><child>vertical_rudder</child>
+      <pose>0 0.066 0 0 0 0 </pose>
       <axis>
         <xyz>1 0 0</xyz>
         <limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit>
@@ -263,7 +286,7 @@
 
     <!-- Вертикальный руль ВЕРХНИЙ (кормовой, для стабилизации крена) -->
     <link name="vertical_rudder_top">
-      <pose>-0.75 0 0.27 1.5708 1.5708 0</pose>
+      <pose>-0.8 0 0.15 1.5708 1.5708 0</pose>
       <inertial>
         <mass>0.02315</mass>
         <inertia><ixx>0.00000129</ixx><iyy>0.00000129</iyy><izz>0.00000129</izz>
@@ -279,6 +302,7 @@
     </link>
     <joint name="vertical_rudder_top_joint" type="revolute">
       <parent>body</parent><child>vertical_rudder_top</child>
+      <pose>0 0.066 0 0 0 0 </pose>
       <axis>
         <xyz>1 0 0</xyz>
         <limit><lower>-0.785</lower><upper>0.785</upper><effort>10</effort><velocity>1.0</velocity></limit>
@@ -381,13 +405,13 @@
     </plugin>
 
     <!-- ===== БАЛЛАСТЫ ===== -->
-    <link name="ballast_1"><pose>0.6625 0 -0.2 0 0 0</pose><inertial><mass>4.655</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b1_v"><geometry><box><size>0.375 0.05 0.05</size></box></geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual><collision name="b1_c"><geometry><box><size>0.375 0.05 0.05</size></box></geometry></collision></link>
+    <link name="ballast_1"><pose>0.6625 0 -0.2 0 0 0</pose><inertial><mass>4.655</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><collision name="b1_c"><geometry><box><size>0.375 0.05 0.05</size></box></geometry></collision></link>
     <joint name="ballast_1_joint" type="fixed"><parent>body</parent><child>ballast_1</child></joint>
-    <link name="ballast_2"><pose>0.2875 0 -0.2 0 0 0</pose><inertial><mass>5.425</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b2_v"><geometry><box><size>0.375 0.05 0.05</size></box></geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual><collision name="b2_c"><geometry><box><size>0.375 0.05 0.05</size></box></geometry></collision></link>
+    <link name="ballast_2"><pose>0.2875 0 -0.2 0 0 0</pose><inertial><mass>5.425</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><collision name="b2_c"><geometry><box><size>0.375 0.05 0.05</size></box></geometry></collision></link>
     <joint name="ballast_2_joint" type="fixed"><parent>body</parent><child>ballast_2</child></joint>
-    <link name="ballast_3"><pose>-0.0875 0 -0.2 0 0 0</pose><inertial><mass>3.425</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b3_v"><geometry><box><size>0.375 0.05 0.05</size></box></geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual><collision name="b3_c"><geometry><box><size>0.375 0.05 0.05</size></box></geometry></collision></link>
+    <link name="ballast_3"><pose>-0.0875 0 -0.2 0 0 0</pose><inertial><mass>3.425</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><collision name="b3_c"><geometry><box><size>0.375 0.05 0.05</size></box></geometry></collision></link>
     <joint name="ballast_3_joint" type="fixed"><parent>body</parent><child>ballast_3</child></joint>
-    <link name="ballast_4"><pose>-0.4625 0 -0.2 0 0 0</pose><inertial><mass>3.775</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><visual name="b4_v"><geometry><box><size>0.375 0.05 0.05</size></box></geometry><material><ambient>0.80 0.20 0.20 1</ambient><diffuse>0.80 0.20 0.20 1</diffuse><specular>0.80 0.20 0.20 1</specular></material></visual><collision name="b4_c"><geometry><box><size>0.375 0.05 0.05</size></box></geometry></collision></link>
+    <link name="ballast_4"><pose>-0.4625 0 -0.2 0 0 0</pose><inertial><mass>3.775</mass><inertia><ixx>0.0001</ixx><iyy>0.0001</iyy><izz>0.0001</izz></inertia></inertial><collision name="b4_c"><geometry><box><size>0.375 0.05 0.05</size></box></geometry></collision></link>
     <joint name="ballast_4_joint" type="fixed"><parent>body</parent><child>ballast_4</child></joint>
 
     <plugin filename="gz-sim-buoyancy-engine-system" name="gz::sim::systems::BuoyancyEngine"><link_name>ballast_1</link_name><min_volume>0.0</min_volume><max_volume>0.015</max_volume><neutral_volume>0.0075</neutral_volume><default_volume>0.0075</default_volume><max_inflation_rate>0.001</max_inflation_rate><fluid_density>1000</fluid_density><namespace>sub_ballast_1</namespace></plugin>
@@ -422,13 +446,6 @@
       <zW>-0.4</zW><zWabsW>-1.0</zWabsW>
       <kP>-0.02</kP><kPabsP>-0.05</kPabsP>
       <mQ>-0.02</mQ><mQabsQ>-0.05</mQabsQ>
-      <nR>-0.02</nR><nRabsR>-0.05</nRabsR>
-    </plugin>
-
-    <plugin filename="gz-sim-hydrodynamics-system" name="gz::sim::systems::Hydrodynamics">
-      <link_name>horizontal_rudder_left</link_name>
-      <xU>-0.2</xU><xUabsU>-0.5</xUabsU>
-      <yV>-0.4</yV><yVabsV>-1.0</yVabsV>
       <zW>-0.4</zW><zWabsW>-1.0</zWabsW>
       <kP>-0.02</kP><kPabsP>-0.05</kPabsP>
       <mQ>-0.02</mQ><mQabsQ>-0.05</mQabsQ>
@@ -454,6 +471,10 @@
       <mQ>-0.02</mQ><mQabsQ>-0.05</mQabsQ>
       <nR>-0.02</nR><nRabsR>-0.05</nRabsR>
     </plugin>
+
+
+        
+
 
   </model>
 </sdf>

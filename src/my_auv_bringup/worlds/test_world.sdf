@@ -1,0 +1,55 @@
+<?xml version="1.0" ?>
+<!-- ============================================================================
+     ТЕСТОВЫЙ МИР для ВКР (раздел 5 «Проверка корректности модели»).
+
+     Содержит препятствия под сценарии валидации из таблицы 5.1:
+       • Сценарий 5 (препятствие-блок по курсу):   demo_block  (15, 0, -3)
+       • Сценарий 6 (препятствие-стена поперёк):    demo_wall   (30, 6, -3)
+       • Доп. блок для второго сегмента:            test_block2 (22, 12, -7)
+
+     Согласован с демонстрационным маршрутом (waypoints_test.txt):
+       старт (0,0,-2) -> (30,0,-3) -> (30,12,-7) -> (15,12,2) -> (0,0,-5).
+
+     Как и в static_world.sdf: БЕЗ дна и БЕЗ поверхности (безграничный объём
+     воды), плотность 1000 кг/м³, шаг физики 0.001 с, реальное время.
+============================================================================ -->
+<sdf version="1.6">
+  <world name="test_world">
+    <physics name="default" type="dartsim">
+      <max_step_size>0.001</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+    </physics>
+    <plugin filename="gz-sim-physics-system" name="gz::sim::systems::Physics"/>
+    <plugin filename="gz-sim-user-commands-system" name="gz::sim::systems::UserCommands"/>
+    <plugin filename="gz-sim-scene-broadcaster-system" name="gz::sim::systems::SceneBroadcaster"/>
+    <plugin filename="gz-sim-buoyancy-system" name="gz::sim::systems::Buoyancy">
+      <uniform_fluid_density>1000</uniform_fluid_density>
+    </plugin>
+    <plugin filename="gz-sim-apply-link-wrench-system" name="gz::sim::systems::ApplyLinkWrench"/>
+    <plugin filename="gz-sim-imu-system" name="gz::sim::systems::Imu"/>
+    <plugin filename="gz-sim-magnetometer-system" name="gz::sim::systems::Magnetometer"/>
+    <plugin filename="gz-sim-sensors-system" name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <light type="directional" name="sun">
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>1 1 1 1</diffuse>
+      <specular>0.5 0.5 0.5 1</specular>
+      <attenuation><range>1000</range><constant>0.9</constant><linear>0.01</linear><quadratic>0.001</quadratic></attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <!-- ===== СЦЕНАРИЙ 5: блок ровно по курсу старт(0,0)->WP1(30,0,-3) ===== -->
+    <!-- Куб 3×3×3, центр на линии маршрута (15,0,-3). Аппарат должен ОБОЙТИ. -->
+    <model name="demo_block"><static>true</static><pose>15.0 0 -3.0 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>3.0 3.0 3.0</size></box></geometry><material><ambient>0.9 0.25 0.1 1</ambient><diffuse>0.9 0.25 0.1 1</diffuse></material></visual><collision name="collision"><geometry><box><size>3.0 3.0 3.0</size></box></geometry></collision></link></model>
+
+    <!-- ===== СЦЕНАРИЙ 6: стена поперёк WP1(30,0,-3)->WP2(30,12,-7) ===== -->
+    <!-- Стена 12×0.6×5 на (30,6,-3): проверка выбора стороны и прохода мимо. -->
+    <model name="demo_wall"><static>true</static><pose>30.0 6.0 -3.0 0 0 0</pose><link name="link"><visual name="visual"><geometry><box><size>12.0 0.6 5.0</size></box></geometry><material><ambient>0.45 0.45 0.5 1</ambient><diffuse>0.45 0.45 0.5 1</diffuse></material></visual><collision name="collision"><geometry><box><size>12.0 0.6 5.0</size></box></geometry></collision></link></model>
+
+    <!-- ===== Доп. блок на 3-м сегменте WP2(30,12,-7)->WP3(15,12,2) ===== -->
+    <!-- Цилиндр на (22,12,-5): проверка обхода при смене глубины. -->
+    <model name="test_block2"><static>true</static><pose>22.0 12.0 -5.0 0 0 0</pose><link name="link"><visual name="visual"><geometry><cylinder><radius>1.5</radius><length>6.0</length></cylinder></geometry><material><ambient>0.2 0.6 0.9 1</ambient><diffuse>0.2 0.6 0.9 1</diffuse></material></visual><collision name="collision"><geometry><cylinder><radius>1.5</radius><length>6.0</length></cylinder></geometry></collision></link></model>
+
+  </world>
+</sdf>

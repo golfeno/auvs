@@ -10,11 +10,11 @@
         <pose>0.2 0 0 0 0 0</pose>
         <mass>121.8</mass>
         <inertia>
-          <ixx>1.64</ixx><iyy>18.33</iyy><izz>18.33</izz>
+          <ixx>18.33</ixx><iyy>18.33</iyy><izz>1.64</izz>
           <ixy>0</ixy><ixz>0</ixz><iyz>0</iyz>
         </inertia>
         <fluid_added_mass>
-          <xx>5.8</xx><yy>116.0</yy><zz>116.0</zz>
+          <xx>116.0</xx><yy>116.0</yy><zz>5.8</zz>
           <pp>0.7</pp><qq>3.7</qq><rr>3.7</rr>
         </fluid_added_mass>
       </inertial>
